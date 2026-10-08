@@ -83,6 +83,8 @@ import com.aicode.feature.agent.domain.command.SlashCommand
 import com.aicode.feature.agent.domain.command.SlashCommandContext
 import com.aicode.feature.agent.domain.command.SlashCommandRegistry
 import com.aicode.feature.agent.domain.command.SlashCommandRegistry.ResolvedCommand
+import com.aicode.feature.agent.domain.mention.FileMentionRepository
+import com.aicode.feature.agent.domain.mention.FileMentionState
 import com.aicode.feature.agent.domain.skill.Skill
 import com.aicode.feature.agent.presentation.AgentAttachment
 import com.aicode.feature.agent.presentation.component.RewindOption
@@ -139,6 +141,7 @@ class AIAgentViewModel @Inject constructor(
     private val planApprovalManager: PlanApprovalManager,
     private val terminalSessionManager: TerminalSessionManager,
     private val slashCommandRegistry: SlashCommandRegistry,
+    private val fileMentionRepository: FileMentionRepository,
     private val checkpointManager: CheckpointManager,
     private val checkpointDao: CheckpointDao,
     private val backupManager: BackupManager,
@@ -2069,6 +2072,43 @@ class AIAgentViewModel @Inject constructor(
                 defaultModelSettingsRepository.setDefaultModel(providerId, model)
             }
         }
+    }
+
+    /** 输入框 `@` 文件引用菜单状态。 */
+    private val _fileMentionState = MutableStateFlow<FileMentionState>(FileMentionState.Idle)
+    val fileMentionState: StateFlow<FileMentionState> = _fileMentionState.asStateFlow()
+
+    private var fileMentionJob: Job? = null
+
+    /**
+     * 打开 `@` 菜单：当前无清单时拉取一次；一次 `@` 会话内（[dismissFileMention] 前）不重复拉取。
+     */
+    fun requestFileMention() {
+        val current = _fileMentionState.value
+        if (current is FileMentionState.Ready || current is FileMentionState.Loading) return
+        fileMentionJob?.cancel()
+        _fileMentionState.value = FileMentionState.Loading
+        fileMentionJob = viewModelScope.launch {
+            val result = fileMentionRepository.loadFiles(_currentWorkspace.value)
+            _fileMentionState.value = when (result) {
+                is FileMentionRepository.LoadResult.Success -> FileMentionState.Ready(result.files)
+                FileMentionRepository.LoadResult.Unavailable -> FileMentionState.Unavailable
+                is FileMentionRepository.LoadResult.Failed -> FileMentionState.Error(result.message)
+            }
+        }
+    }
+
+    /** 关闭 `@` 菜单：丢弃清单，下次打开重新拉取，保证拿到最新文件列表。 */
+    fun dismissFileMention() {
+        fileMentionJob?.cancel()
+        fileMentionJob = null
+        _fileMentionState.value = FileMentionState.Idle
+    }
+
+    /** 在已就绪的清单里匹配当前查询；未就绪返回空。 */
+    fun matchFileMentions(query: String): List<String> {
+        val files = (_fileMentionState.value as? FileMentionState.Ready)?.files ?: return emptyList()
+        return fileMentionRepository.match(files, query)
     }
 
     /** 暴露给 UI：输入框 `/` 菜单展示的命令列表（内置命令 + 已启用技能）。 */

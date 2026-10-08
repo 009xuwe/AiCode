@@ -559,6 +559,10 @@
     <string name="chat_input_placeholder">Type a message to chat with AI…</string>
     <string name="chat_queue_hint">AI is busy, press enter to queue the message</string>
     <string name="chat_input_expand">Expand input box</string>
+    <string name="chat_mention_loading">Loading files…</string>
+    <string name="chat_mention_unavailable">Container not ready, cannot search files</string>
+    <string name="chat_mention_error">Failed to load file list</string>
+    <string name="chat_mention_empty">No matching files</string>
     <string name="chat_input_fullscreen_title">Full-screen input</string>
     <string name="chat_queue_title">Queue (%1$d)</string>
     <string name="chat_queue_remove">Remove from queue</string>

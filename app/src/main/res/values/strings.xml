@@ -559,6 +559,10 @@
     <string name="chat_input_placeholder">输入消息，与 AI 对话…</string>
     <string name="chat_queue_hint">AI 正在处理中，回车发送将自动排队</string>
     <string name="chat_input_expand">展开输入框</string>
+    <string name="chat_mention_loading">正在加载文件列表…</string>
+    <string name="chat_mention_unavailable">容器未就绪，无法搜索文件</string>
+    <string name="chat_mention_error">加载文件列表失败</string>
+    <string name="chat_mention_empty">没有匹配的文件</string>
     <string name="chat_input_fullscreen_title">全屏输入</string>
     <string name="chat_queue_title">待发送队列（%1$d）</string>
     <string name="chat_queue_remove">移除排队消息</string>
