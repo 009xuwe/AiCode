@@ -292,6 +292,7 @@
     <string name="common_create">Create</string>
     <string name="common_delete">Delete</string>
     <string name="common_cancel">Cancel</string>
+    <string name="common_confirm">Confirm</string>
     <string name="common_go_to_settings">Go to Settings</string>
     <string name="common_name">Name</string>
     <string name="common_image_preview">Image Preview</string>
@@ -602,6 +603,10 @@
     <string name="chat_input_placeholder">Type a message to chat with AI…</string>
     <string name="chat_queue_hint">AI is busy, press enter to queue the message</string>
     <string name="chat_input_expand">Expand input box</string>
+    <string name="chat_mention_loading">Loading files…</string>
+    <string name="chat_mention_unavailable">Container not ready, cannot search files</string>
+    <string name="chat_mention_error">Failed to load file list</string>
+    <string name="chat_mention_empty">No matching files</string>
     <string name="chat_input_fullscreen_title">Full-screen input</string>
     <string name="chat_queue_title">Queue (%1$d)</string>
     <string name="chat_queue_remove">Remove from queue</string>
@@ -1653,4 +1658,7 @@
     <string name="browser_night_mode_on">Turn off night mode</string>
     <string name="browser_night_mode_off">Turn on night mode</string>
     <string name="browser_devtools">Developer tools</string>
+    <string name="browser_dialog_alert_title">Page Alert</string>
+    <string name="browser_dialog_confirm_title">Page Confirmation</string>
+    <string name="browser_dialog_prompt_title">Page Input</string>
 </resources>

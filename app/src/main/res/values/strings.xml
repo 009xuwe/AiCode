@@ -292,6 +292,7 @@
     <string name="common_create">创建</string>
     <string name="common_delete">删除</string>
     <string name="common_cancel">取消</string>
+    <string name="common_confirm">确定</string>
     <string name="common_go_to_settings">去设置</string>
     <string name="common_name">名称</string>
     <string name="common_image_preview">图片预览</string>
@@ -602,6 +603,10 @@
     <string name="chat_input_placeholder">输入消息，与 AI 对话…</string>
     <string name="chat_queue_hint">AI 正在处理中，回车发送将自动排队</string>
     <string name="chat_input_expand">展开输入框</string>
+    <string name="chat_mention_loading">正在加载文件列表…</string>
+    <string name="chat_mention_unavailable">容器未就绪，无法搜索文件</string>
+    <string name="chat_mention_error">加载文件列表失败</string>
+    <string name="chat_mention_empty">没有匹配的文件</string>
     <string name="chat_input_fullscreen_title">全屏输入</string>
     <string name="chat_queue_title">待发送队列（%1$d）</string>
     <string name="chat_queue_remove">移除排队消息</string>
@@ -1652,4 +1657,7 @@
     <string name="browser_night_mode_on">关闭夜间模式</string>
     <string name="browser_night_mode_off">开启夜间模式</string>
     <string name="browser_devtools">开发者工具</string>
+    <string name="browser_dialog_alert_title">网页提示</string>
+    <string name="browser_dialog_confirm_title">网页确认</string>
+    <string name="browser_dialog_prompt_title">网页输入</string>
 </resources>
