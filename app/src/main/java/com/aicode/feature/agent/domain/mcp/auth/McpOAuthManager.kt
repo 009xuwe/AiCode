@@ -37,7 +37,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class McpOAuthManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val client: OkHttpClient,
     private val discovery: McpOAuthDiscovery,
     private val registrar: McpClientRegistrar,

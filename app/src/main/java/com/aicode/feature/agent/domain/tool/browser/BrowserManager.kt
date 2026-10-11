@@ -152,7 +152,7 @@ data class BrowserConsoleEntry(
 
 @Singleton
 class BrowserManager @Inject constructor(
-    @ApplicationContext private val appContext: Context,
+    @param:ApplicationContext private val appContext: Context,
     private val fileAccess: FileAccessProvider,
     private val pathHomeResolver: PathHomeResolver
 ) {
@@ -626,6 +626,9 @@ class BrowserManager @Inject constructor(
      * 内核级暗色设置。prefers-color-scheme 实际由 WebView 主题的 isLightTheme 决定（见 [webViewThemeRes]），
      * 这里设置算法调暗并借此触发 WebView 重读偏好——夜间模式切换后需要一次 settings 变更才会下发新偏好。
      */
+    // FORCE_DARK 已被 AndroidX 弃用（推荐 setAlgorithmicDarkeningAllowed），但后者要 API 33+，
+    // 本项目锁 targetSdk 28，旧 WebView 上这条兜底是唯一可用的开关，故保留并抑制告警。
+    @Suppress("DEPRECATION")
     private fun applyDarkThemeToSettings(wv: WebView) {
         try {
             if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {

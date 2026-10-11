@@ -1,5 +1,6 @@
 package com.aicode.feature.credentials.presentation.component
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -38,14 +39,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,6 +68,7 @@ import compose.icons.feathericons.Copy
 import compose.icons.feathericons.ExternalLink
 import compose.icons.feathericons.Github
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * GitHub OAuth 设备码授权弹层：采用 Apple HIG 风格设计，
@@ -80,7 +83,8 @@ internal fun GitHubDeviceFlowSheet(
     onSuccessDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
 
     // 成功后短暂展示反馈再自动收起；未安装 App 时保留弹层供用户继续操作
     LaunchedEffect(state) {
@@ -118,7 +122,11 @@ internal fun GitHubDeviceFlowSheet(
                         verificationUri = state.verificationUri,
                         context = context,
                         onCopyCode = {
-                            clipboard.setText(AnnotatedString(state.userCode))
+                            scope.launch {
+                                clipboard.setClipEntry(
+                                    ClipEntry(ClipData.newPlainText("device-code", state.userCode))
+                                )
+                            }
                             Toast.makeText(
                                 context,
                                 context.getString(R.string.credential_device_code_copied),
@@ -126,7 +134,11 @@ internal fun GitHubDeviceFlowSheet(
                             ).show()
                         },
                         onAuthorizeAndOpen = {
-                            clipboard.setText(AnnotatedString(state.userCode))
+                            scope.launch {
+                                clipboard.setClipEntry(
+                                    ClipEntry(ClipData.newPlainText("device-code", state.userCode))
+                                )
+                            }
                             Toast.makeText(
                                 context,
                                 context.getString(R.string.credential_device_code_copied_opening),

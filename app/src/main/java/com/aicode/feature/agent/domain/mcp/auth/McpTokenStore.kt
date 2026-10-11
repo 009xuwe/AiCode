@@ -22,7 +22,7 @@ import javax.inject.Singleton
 @Singleton
 class McpTokenStore @Inject constructor(
     // 限定符与 McpAuthModule 的 @Provides 保持一致。
-    @Named("mcpOAuthFile") private val file: File
+    @param:Named("mcpOAuthFile") private val file: File
 ) {
     private companion object {
         const val TAG = "McpTokenStore"
