@@ -481,6 +481,7 @@
 
     <!-- 网络备份 -->
     <string name="backup_net_section">网络备份</string>
+    <string name="backup_tab_local">本地备份</string>
     <string name="backup_net_targets">备份目标</string>
     <string name="backup_net_add_target">添加备份目标</string>
     <string name="backup_net_edit_target">编辑备份目标</string>

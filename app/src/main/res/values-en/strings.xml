@@ -481,6 +481,7 @@
 
     <!-- 网络备份 -->
     <string name="backup_net_section">Cloud backup</string>
+    <string name="backup_tab_local">Local</string>
     <string name="backup_net_targets">Backup targets</string>
     <string name="backup_net_add_target">Add backup target</string>
     <string name="backup_net_edit_target">Edit backup target</string>

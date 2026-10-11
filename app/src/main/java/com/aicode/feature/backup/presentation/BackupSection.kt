@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.aicode.core.theme.Spacing
+import com.aicode.core.ui.SegmentedTabs
 import com.aicode.core.ui.SwipeToDeleteRow
 import com.aicode.feature.backup.domain.BackupOptions
 import com.aicode.feature.backup.domain.WorkspaceBackupMeta
@@ -86,6 +87,7 @@ internal fun BackupSection(viewModel: BackupViewModel) {
     var restoreName by remember { mutableStateOf<String?>(null) }
     var restorePassword by remember { mutableStateOf("") }
     var networkWorkingTextRes by remember { mutableStateOf(R.string.backup_net_loading) }
+    var backupTab by remember { mutableStateOf(0) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -199,77 +201,88 @@ internal fun BackupSection(viewModel: BackupViewModel) {
             WorkspaceBackupHint()
         }
 
-        SettingsGroupHeader(text = stringResource(R.string.backup_actions))
-        SettingsGroup {
-            SettingsRow(
-                icon = FeatherIcons.Download,
-                title = stringResource(R.string.backup_export_title),
-                subtitle = stringResource(R.string.backup_export_subtitle),
-                enabled = state !is BackupState.Working,
-                onClick = { pendingAction = PendingAction.ExportPassword }
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = FeatherIcons.Upload,
-                title = stringResource(R.string.backup_import_title),
-                subtitle = stringResource(R.string.backup_import_subtitle),
-                enabled = state !is BackupState.Working,
-                onClick = {
-                    pendingAction = PendingAction.Import
-                    importLauncher.launch(arrayOf("application/octet-stream", "application/gzip", "*/*"))
-                }
-            )
-        }
+        SegmentedTabs(
+            selected = backupTab,
+            labels = listOf(
+                stringResource(R.string.backup_tab_local),
+                stringResource(R.string.backup_net_section)
+            ),
+            onSelect = { backupTab = it },
+            modifier = Modifier.padding(top = Spacing.lg)
+        )
 
-        // 网络备份：目标管理 + 上传/恢复
-        SettingsGroupHeader(text = stringResource(R.string.backup_net_section))
-        SettingsGroup {
-            if (targets.isEmpty()) {
+        if (backupTab == 0) {
+            SettingsGroupHeader(text = stringResource(R.string.backup_actions))
+            SettingsGroup {
                 SettingsRow(
-                    title = stringResource(R.string.backup_net_no_target),
-                    enabled = false
+                    icon = FeatherIcons.Download,
+                    title = stringResource(R.string.backup_export_title),
+                    subtitle = stringResource(R.string.backup_export_subtitle),
+                    enabled = state !is BackupState.Working,
+                    onClick = { pendingAction = PendingAction.ExportPassword }
                 )
-            } else {
-                targets.forEach { target ->
-                    SwipeToDeleteRow(
-                        onDelete = { targetToDelete = target },
-                        onClick = {
-                            editingTarget = target
-                            showTargetSheet = true
-                        }
-                    ) {
-                        SettingsRow(
-                            title = target.name,
-                            subtitle = targetSubtitle(target)
-                        )
+                SettingsDivider()
+                SettingsRow(
+                    icon = FeatherIcons.Upload,
+                    title = stringResource(R.string.backup_import_title),
+                    subtitle = stringResource(R.string.backup_import_subtitle),
+                    enabled = state !is BackupState.Working,
+                    onClick = {
+                        pendingAction = PendingAction.Import
+                        importLauncher.launch(arrayOf("application/octet-stream", "application/gzip", "*/*"))
                     }
-                    SettingsDivider()
-                }
+                )
             }
-            SettingsRow(
-                icon = FeatherIcons.Plus,
-                title = stringResource(R.string.backup_net_add_target),
-                onClick = {
-                    editingTarget = null
-                    showTargetSheet = true
+        } else {
+            SettingsGroupHeader(text = stringResource(R.string.backup_net_targets))
+            SettingsGroup {
+                if (targets.isEmpty()) {
+                    SettingsRow(
+                        title = stringResource(R.string.backup_net_no_target),
+                        enabled = false
+                    )
+                } else {
+                    targets.forEach { target ->
+                        SwipeToDeleteRow(
+                            onDelete = { targetToDelete = target },
+                            onClick = {
+                                editingTarget = target
+                                showTargetSheet = true
+                            }
+                        ) {
+                            SettingsRow(
+                                title = target.name,
+                                subtitle = targetSubtitle(target)
+                            )
+                        }
+                        SettingsDivider()
+                    }
                 }
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = FeatherIcons.Upload,
-                title = stringResource(R.string.backup_net_upload),
-                subtitle = stringResource(R.string.backup_net_upload_subtitle),
-                enabled = targets.isNotEmpty() && state !is BackupState.Working && networkState !is NetworkBackupState.Working,
-                onClick = { targetPickerMode = NetworkPickerMode.Upload }
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = FeatherIcons.Download,
-                title = stringResource(R.string.backup_net_restore),
-                subtitle = stringResource(R.string.backup_net_restore_subtitle),
-                enabled = targets.isNotEmpty() && state !is BackupState.Working && networkState !is NetworkBackupState.Working,
-                onClick = { targetPickerMode = NetworkPickerMode.Restore }
-            )
+                SettingsRow(
+                    icon = FeatherIcons.Plus,
+                    title = stringResource(R.string.backup_net_add_target),
+                    onClick = {
+                        editingTarget = null
+                        showTargetSheet = true
+                    }
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = FeatherIcons.Upload,
+                    title = stringResource(R.string.backup_net_upload),
+                    subtitle = stringResource(R.string.backup_net_upload_subtitle),
+                    enabled = targets.isNotEmpty() && state !is BackupState.Working && networkState !is NetworkBackupState.Working,
+                    onClick = { targetPickerMode = NetworkPickerMode.Upload }
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = FeatherIcons.Download,
+                    title = stringResource(R.string.backup_net_restore),
+                    subtitle = stringResource(R.string.backup_net_restore_subtitle),
+                    enabled = targets.isNotEmpty() && state !is BackupState.Working && networkState !is NetworkBackupState.Working,
+                    onClick = { targetPickerMode = NetworkPickerMode.Restore }
+                )
+            }
         }
     }
 
