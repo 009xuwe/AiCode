@@ -241,16 +241,18 @@ class BackupViewModel @Inject constructor(
                     runCatching { targetRepository.storageFor(target).download(name, temp).getOrThrow() }
                 }
                 result
+                    // 成功时把口令所有权交给 startImport（它在自己的 finally 里清零）；
+                    // 这里不能提前清零，否则异步导入读到的会是全 NUL 口令，导致解密失败。
                     .onSuccess { startImport(ImportSource.Local(temp), pw) }
                     .onFailure {
                         withContext(Dispatchers.IO + NonCancellable) { temp.delete() }
+                        pw?.fill('\u0000')
                         _state.value = BackupState.Error(describeImportError(it))
                     }
             } catch (e: Exception) {
                 FileLogger.e(TAG, "网络备份恢复失败", e)
-                _state.value = BackupState.Error(describeImportError(e))
-            } finally {
                 pw?.fill('\u0000')
+                _state.value = BackupState.Error(describeImportError(e))
             }
         }
     }
