@@ -1096,31 +1096,60 @@ class SettingsViewModel @Inject constructor(
 
     fun upsertMcpServer(originalName: String?, initialScope: McpScope?, config: McpServerConfig, scope: McpScope) {
         viewModelScope.launch {
-            // 作用域迁移：仅当保存作用域与原来不同时，从原作用域移除旧条目，
-            // 避免残留条目在合并时（项目优先）继续覆盖新作用域的配置。
-            if (originalName != null && initialScope != null && initialScope != scope) {
-                val oldBase = if (initialScope == McpScope.GLOBAL) mcpConfigRepository.getGlobalServers() else mcpConfigRepository.getProjectServers()
-                val oldUpdated = oldBase.filterNot { it.name == originalName }
-                if (initialScope == McpScope.GLOBAL) mcpConfigRepository.setGlobalServers(oldUpdated) else mcpConfigRepository.setProjectServers(oldUpdated)
-            }
-            val base = if (scope == McpScope.GLOBAL) mcpConfigRepository.getGlobalServers() else mcpConfigRepository.getProjectServers()
-            val ordered = LinkedHashMap<String, McpServerConfig>()
-            base.forEach { ordered[it.name] = it }
+            saveMcpServerInternal(originalName, initialScope, config, scope)
+        }
+    }
+
+    private suspend fun saveMcpServerInternal(
+        originalName: String?,
+        initialScope: McpScope?,
+        config: McpServerConfig,
+        scope: McpScope
+    ) {
+        // 作用域迁移：仅当保存作用域与原来不同时，从原作用域移除旧条目，
+        // 避免残留条目在合并时（项目优先）继续覆盖新作用域的配置。
+        if (originalName != null && initialScope != null && initialScope != scope) {
+            val oldBase = if (initialScope == McpScope.GLOBAL) mcpConfigRepository.getGlobalServers() else mcpConfigRepository.getProjectServers()
+            val oldUpdated = oldBase.filterNot { it.name == originalName }
+            if (initialScope == McpScope.GLOBAL) mcpConfigRepository.setGlobalServers(oldUpdated) else mcpConfigRepository.setProjectServers(oldUpdated)
+        }
+        val base = if (scope == McpScope.GLOBAL) mcpConfigRepository.getGlobalServers() else mcpConfigRepository.getProjectServers()
+        val ordered = LinkedHashMap<String, McpServerConfig>()
+        base.forEach { ordered[it.name] = it }
+        if (originalName != null && originalName != config.name) {
+            ordered.remove(originalName)
+        }
+        ordered[config.name] = config
+        val updated = ordered.values.toList()
+        if (scope == McpScope.GLOBAL) mcpConfigRepository.setGlobalServers(updated) else mcpConfigRepository.setProjectServers(updated)
+        _mcpReloading.value = true
+        try {
+            // 仅重连被改动的 server，其他 server 不受影响；重命名时先断开旧名。
             if (originalName != null && originalName != config.name) {
-                ordered.remove(originalName)
+                mcpManager.removeServer(originalName)
             }
-            ordered[config.name] = config
-            val updated = ordered.values.toList()
-            if (scope == McpScope.GLOBAL) mcpConfigRepository.setGlobalServers(updated) else mcpConfigRepository.setProjectServers(updated)
-            _mcpReloading.value = true
-            try {
-                // 仅重连被改动的 server，其他 server 不受影响；重命名时先断开旧名。
-                if (originalName != null && originalName != config.name) {
-                    mcpManager.removeServer(originalName)
-                }
-                mcpManager.reloadServer(config.name)
-            } finally {
-                _mcpReloading.value = false
+            mcpManager.reloadServer(config.name)
+        } finally {
+            _mcpReloading.value = false
+        }
+    }
+
+    /** 保存最新表单配置并立即发起 OAuth 授权，确保弹窗中修改的 client_id 等字段即时生效。 */
+    fun saveAndAuthorizeMcpServer(
+        originalName: String?,
+        initialScope: McpScope?,
+        config: McpServerConfig,
+        scope: McpScope
+    ) {
+        if (_mcpAuthState.value.inProgress) return
+        viewModelScope.launch {
+            saveMcpServerInternal(originalName, initialScope, config, scope)
+            _mcpAuthState.value = McpAuthUiState(serverName = config.name, inProgress = true)
+            val result = mcpManager.authorize(config.name)
+            _mcpAuthState.value = when {
+                result.isSuccess -> McpAuthUiState(serverName = config.name, success = true)
+                result.exceptionOrNull() is McpOAuthCancelledException -> McpAuthUiState()
+                else -> McpAuthUiState(serverName = config.name, error = result.exceptionOrNull()?.message)
             }
         }
     }

@@ -1156,7 +1156,9 @@ fun SettingsScreen(
                     section = SettingsSection.Log
                 }
             },
-            onAuthorize = { viewModel.authorizeMcpServer(it) },
+            onAuthorize = { config, scope ->
+                viewModel.saveAndAuthorizeMcpServer(editingMcp?.server?.name, editingMcp?.scope, config, scope)
+            },
             onLogout = { viewModel.logoutMcpServer(it) },
             onCancel = { viewModel.cancelMcpAuthorize(it) },
             onDismiss = {

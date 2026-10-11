@@ -81,7 +81,7 @@ fun McpServerEditDialog(
     connected: Boolean = false,
     onRefreshTools: () -> Unit = {},
     onOpenLogs: (() -> Unit)? = null,
-    onAuthorize: (String) -> Unit = {},
+    onAuthorize: (McpServerConfig, McpScope) -> Unit = { _, _ -> },
     onLogout: (String) -> Unit = {},
     onCancel: (String) -> Unit = {},
     onDismiss: () -> Unit,
@@ -130,6 +130,42 @@ fun McpServerEditDialog(
     val nameError = name.isNotBlank() && !McpServerConfig.isValidName(name)
 
     val canSave = name.isNotBlank() && !nameError && if (isStdio) command.isNotBlank() else url.isNotBlank()
+
+    val currentConfig: () -> McpServerConfig = {
+        if (isStdio) {
+            McpServerConfig(
+                name = name.trim(),
+                command = command.trim(),
+                args = argsList.map { it.trim() }.filter { it.isNotEmpty() },
+                env = envList
+                    .map { it.first.trim() to it.second }
+                    .filter { it.first.isNotEmpty() }
+                    .toMap(),
+                enabled = enabled,
+                disabledTools = disabledToolsSet.toSet()
+            )
+        } else {
+            McpServerConfig(
+                name = name.trim(),
+                url = url.trim(),
+                headers = headers
+                    .map { it.first.trim() to it.second }
+                    .filter { it.first.isNotEmpty() }
+                    .toMap(),
+                enabled = enabled,
+                disabledTools = disabledToolsSet.toSet(),
+                auth = if (authEnabled) {
+                    McpAuthConfig(
+                        type = McpAuthConfig.TYPE_OAUTH,
+                        clientId = clientId.trim().ifBlank { null },
+                        authServer = authServer.trim().ifBlank { null }
+                    )
+                } else {
+                    null
+                }
+            )
+        }
+    }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val configuration = LocalConfiguration.current
@@ -325,7 +361,11 @@ fun McpServerEditDialog(
                                     serverName = initial?.name,
                                     authState = authState,
                                     connected = connected,
-                                    onAuthorize = onAuthorize,
+                                    onAuthorize = {
+                                        if (canSave) {
+                                            onAuthorize(currentConfig(), scope)
+                                        }
+                                    },
                                     onLogout = onLogout,
                                     onCancel = onCancel
                                 )
@@ -549,40 +589,7 @@ fun McpServerEditDialog(
                     Button(
                         enabled = canSave,
                         onClick = {
-                            val config = if (isStdio) {
-                                McpServerConfig(
-                                    name = name.trim(),
-                                    command = command.trim(),
-                                    args = argsList.map { it.trim() }.filter { it.isNotEmpty() },
-                                    env = envList
-                                        .map { it.first.trim() to it.second }
-                                        .filter { it.first.isNotEmpty() }
-                                        .toMap(),
-                                    enabled = enabled,
-                                    disabledTools = disabledToolsSet.toSet()
-                                )
-                            } else {
-                                McpServerConfig(
-                                    name = name.trim(),
-                                    url = url.trim(),
-                                    headers = headers
-                                        .map { it.first.trim() to it.second }
-                                        .filter { it.first.isNotEmpty() }
-                                        .toMap(),
-                                    enabled = enabled,
-                                    disabledTools = disabledToolsSet.toSet(),
-                                    auth = if (authEnabled) {
-                                        McpAuthConfig(
-                                            type = McpAuthConfig.TYPE_OAUTH,
-                                            clientId = clientId.trim().ifBlank { null },
-                                            authServer = authServer.trim().ifBlank { null }
-                                        )
-                                    } else {
-                                        null
-                                    }
-                                )
-                            }
-                            onSave(config, scope)
+                            onSave(currentConfig(), scope)
                         },
                         modifier = Modifier
                             .fillMaxWidth()

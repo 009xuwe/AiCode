@@ -40,18 +40,24 @@ class McpClientRegistrar @Inject constructor(
         redirectUri: String,
         preRegisteredClientId: String?
     ): OAuthClientRegistration? {
-        tokenStore.getClient(issuer)?.let { return it }
+        val cached = tokenStore.getClient(issuer)
+        val trimmedClientId = preRegisteredClientId?.trim()
 
-        if (!preRegisteredClientId.isNullOrBlank()) {
+        if (!trimmedClientId.isNullOrBlank()) {
+            if (cached != null && cached.clientId == trimmedClientId) {
+                return cached
+            }
             val reg = OAuthClientRegistration(
                 issuer = issuer,
-                clientId = preRegisteredClientId.trim(),
+                clientId = trimmedClientId,
                 clientSecret = null,
                 redirectUri = redirectUri
             )
             tokenStore.putClient(reg)
             return reg
         }
+
+        if (cached != null) return cached
 
         val endpoint = metadata.registrationEndpoint
         if (!endpoint.isNullOrBlank()) {
