@@ -9,6 +9,7 @@ import com.aicode.feature.agent.data.local.dao.ChatSessionDao
 import com.aicode.feature.agent.data.local.dao.CheckpointDao
 import com.aicode.feature.agent.data.local.dao.LlmCallRecordDao
 import com.aicode.feature.agent.data.local.dao.TodoItemDao
+import com.aicode.feature.backup.data.local.dao.BackupTargetDao
 import com.aicode.feature.settings.data.local.dao.AIProviderDao
 import com.aicode.feature.settings.domain.repository.AIProviderRepository
 import com.aicode.feature.agent.data.local.database.AgentDatabase
@@ -157,6 +158,12 @@ object AgentModule {
     @Singleton
     fun provideTodoItemDao(database: AgentDatabase): TodoItemDao {
         return database.todoItemDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideBackupTargetDao(database: AgentDatabase): BackupTargetDao {
+        return database.backupTargetDao()
     }
 
     @Provides

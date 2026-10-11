@@ -22,7 +22,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +47,7 @@ import com.aicode.feature.agent.domain.mcp.McpServerStatus
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Box
 import compose.icons.feathericons.ChevronRight
+import compose.icons.feathericons.Search
 import compose.icons.feathericons.Terminal
 import com.aicode.R
 
@@ -100,6 +104,16 @@ internal fun McpSection(
         return
     }
 
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredEntries = remember(entries, searchQuery) {
+        if (searchQuery.isBlank()) entries
+        else entries.filter { entry ->
+            entry.server.name.contains(searchQuery, ignoreCase = true) ||
+                entry.server.url?.contains(searchQuery, ignoreCase = true) == true ||
+                entry.server.command?.contains(searchQuery, ignoreCase = true) == true
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -108,18 +122,53 @@ internal fun McpSection(
             .padding(bottom = Spacing.xl),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
-        SettingsGroup {
-            entries.forEachIndexed { index, entry ->
-                if (index > 0) {
-                    SettingsDivider()
+        if (entries.size >= 3) {
+            ModelSearchField(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                placeholder = stringResource(R.string.mcp_search_placeholder),
+                modifier = Modifier.padding(bottom = Spacing.xs)
+            )
+        }
+
+        if (filteredEntries.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    Icon(
+                        FeatherIcons.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = stringResource(R.string.mcp_search_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                McpServerRow(
-                    server = entry.server,
-                    scope = entry.scope,
-                    status = statuses.firstOrNull { it.name == entry.server.name },
-                    onClick = { onEdit(entry) },
-                    onDelete = { onDelete(entry.server.name, entry.scope) }
-                )
+            }
+        } else {
+            SettingsGroup {
+                filteredEntries.forEachIndexed { index, entry ->
+                    if (index > 0) {
+                        SettingsDivider()
+                    }
+                    McpServerRow(
+                        server = entry.server,
+                        scope = entry.scope,
+                        status = statuses.firstOrNull { it.name == entry.server.name },
+                        onClick = { onEdit(entry) },
+                        onDelete = { onDelete(entry.server.name, entry.scope) }
+                    )
+                }
             }
         }
     }
@@ -145,6 +194,7 @@ internal fun McpServerRow(
         else -> when (status.state) {
             McpServerStatus.State.CONNECTED -> stringResource(R.string.mcp_connected)
             McpServerStatus.State.CONNECTING -> stringResource(R.string.mcp_connecting)
+            McpServerStatus.State.NEEDS_AUTH -> stringResource(R.string.mcp_needs_auth)
             McpServerStatus.State.FAILED -> stringResource(R.string.mcp_connection_failed)
             McpServerStatus.State.DISABLED -> stringResource(R.string.mcp_disabled)
         }
@@ -156,6 +206,8 @@ internal fun McpServerRow(
         status.state == McpServerStatus.State.CONNECTED ->
             MaterialTheme.colorScheme.tertiary
         status.state == McpServerStatus.State.CONNECTING ->
+            MaterialTheme.colorScheme.primary
+        status.state == McpServerStatus.State.NEEDS_AUTH ->
             MaterialTheme.colorScheme.primary
         else ->
             MaterialTheme.colorScheme.error
