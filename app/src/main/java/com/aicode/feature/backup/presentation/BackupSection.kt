@@ -41,8 +41,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.aicode.core.theme.Spacing
+import com.aicode.core.ui.SwipeToDeleteRow
 import com.aicode.feature.backup.domain.BackupOptions
 import com.aicode.feature.backup.domain.WorkspaceBackupMeta
+import com.aicode.feature.backup.domain.remote.BackupTarget
+import com.aicode.feature.backup.domain.remote.BackupTargetType
 import com.aicode.feature.settings.presentation.component.SettingsDivider
 import com.aicode.feature.settings.presentation.component.SettingsGroup
 import com.aicode.feature.settings.presentation.component.SettingsGroupHeader
@@ -50,6 +53,7 @@ import com.aicode.feature.settings.presentation.component.SettingsRow
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.AlertCircle
 import compose.icons.feathericons.Download
+import compose.icons.feathericons.Plus
 import compose.icons.feathericons.Upload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,6 +73,19 @@ internal fun BackupSection(viewModel: BackupViewModel) {
     var pendingExportPassword by remember { mutableStateOf("") }
     var pendingExportOptions by remember { mutableStateOf(BackupOptions()) }
     val exportOptions by viewModel.exportOptions.collectAsStateWithLifecycle()
+    val targets by viewModel.targets.collectAsStateWithLifecycle()
+    val networkState by viewModel.networkState.collectAsStateWithLifecycle()
+
+    var editingTarget by remember { mutableStateOf<BackupTarget?>(null) }
+    var showTargetSheet by remember { mutableStateOf(false) }
+    var targetToDelete by remember { mutableStateOf<BackupTarget?>(null) }
+    var targetPickerMode by remember { mutableStateOf<NetworkPickerMode?>(null) }
+    var uploadTarget by remember { mutableStateOf<BackupTarget?>(null) }
+    var uploadPassword by remember { mutableStateOf("") }
+    var restoreTarget by remember { mutableStateOf<BackupTarget?>(null) }
+    var restoreName by remember { mutableStateOf<String?>(null) }
+    var restorePassword by remember { mutableStateOf("") }
+    var networkWorkingTextRes by remember { mutableStateOf(R.string.backup_net_loading) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -203,6 +220,57 @@ internal fun BackupSection(viewModel: BackupViewModel) {
                 }
             )
         }
+
+        // 网络备份：目标管理 + 上传/恢复
+        SettingsGroupHeader(text = stringResource(R.string.backup_net_section))
+        SettingsGroup {
+            if (targets.isEmpty()) {
+                SettingsRow(
+                    title = stringResource(R.string.backup_net_no_target),
+                    enabled = false
+                )
+            } else {
+                targets.forEach { target ->
+                    SwipeToDeleteRow(
+                        onDelete = { targetToDelete = target },
+                        onClick = {
+                            editingTarget = target
+                            showTargetSheet = true
+                        }
+                    ) {
+                        SettingsRow(
+                            title = target.name,
+                            subtitle = targetSubtitle(target)
+                        )
+                    }
+                    SettingsDivider()
+                }
+            }
+            SettingsRow(
+                icon = FeatherIcons.Plus,
+                title = stringResource(R.string.backup_net_add_target),
+                onClick = {
+                    editingTarget = null
+                    showTargetSheet = true
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Upload,
+                title = stringResource(R.string.backup_net_upload),
+                subtitle = stringResource(R.string.backup_net_upload_subtitle),
+                enabled = targets.isNotEmpty() && state !is BackupState.Working && networkState !is NetworkBackupState.Working,
+                onClick = { targetPickerMode = NetworkPickerMode.Upload }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Download,
+                title = stringResource(R.string.backup_net_restore),
+                subtitle = stringResource(R.string.backup_net_restore_subtitle),
+                enabled = targets.isNotEmpty() && state !is BackupState.Working && networkState !is NetworkBackupState.Working,
+                onClick = { targetPickerMode = NetworkPickerMode.Restore }
+            )
+        }
     }
 
     // 导出：输口令（可留空）
@@ -251,6 +319,160 @@ internal fun BackupSection(viewModel: BackupViewModel) {
         )
     }
 
+    // 目标编辑底部弹窗
+    if (showTargetSheet) {
+        BackupTargetSheet(
+            initial = editingTarget,
+            onDismiss = { showTargetSheet = false },
+            onSave = { viewModel.saveTarget(it); showTargetSheet = false },
+            onTest = { target, callback -> viewModel.testTarget(target, callback) }
+        )
+    }
+
+    // 目标删除确认
+    targetToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { targetToDelete = null },
+            title = { Text(stringResource(R.string.common_delete)) },
+            text = { Text(stringResource(R.string.backup_net_delete_target_confirm, target.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteTarget(target.id)
+                    targetToDelete = null
+                }) {
+                    Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { targetToDelete = null }) { Text(stringResource(R.string.common_cancel)) } }
+        )
+    }
+
+    // 目标选择（上传 / 恢复）
+    targetPickerMode?.let { mode ->
+        AlertDialog(
+            onDismissRequest = { targetPickerMode = null },
+            title = { Text(stringResource(R.string.backup_net_select_target)) },
+            text = {
+                Column {
+                    targets.forEach { target ->
+                        TextButton(onClick = {
+                            targetPickerMode = null
+                            when (mode) {
+                                NetworkPickerMode.Upload -> {
+                                    uploadTarget = target
+                                    uploadPassword = ""
+                                }
+                                NetworkPickerMode.Restore -> {
+                                    networkWorkingTextRes = R.string.backup_net_loading
+                                    viewModel.loadRemoteBackups(target)
+                                }
+                            }
+                        }) { Text(target.name) }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { targetPickerMode = null }) { Text(stringResource(R.string.common_cancel)) } }
+        )
+    }
+
+    // 上传口令
+    uploadTarget?.let { target ->
+        PasswordDialog(
+            title = stringResource(R.string.backup_set_password),
+            subtitle = stringResource(R.string.backup_password_hint),
+            confirmText = stringResource(R.string.backup_net_upload),
+            password = uploadPassword,
+            onPasswordChange = { uploadPassword = it },
+            onConfirm = {
+                val t = uploadTarget
+                val pw = uploadPassword
+                uploadTarget = null
+                uploadPassword = ""
+                if (t != null) {
+                    networkWorkingTextRes = R.string.backup_net_uploading
+                    viewModel.uploadToTarget(t, pw)
+                }
+            },
+            onDismiss = { uploadTarget = null; uploadPassword = "" }
+        )
+    }
+
+    // 云端恢复口令
+    if (restoreTarget != null && restoreName != null) {
+        PasswordDialog(
+            title = stringResource(R.string.backup_password_input),
+            subtitle = stringResource(R.string.backup_password_optional_hint),
+            confirmText = stringResource(R.string.backup_import_btn),
+            password = restorePassword,
+            onPasswordChange = { restorePassword = it },
+            onConfirm = {
+                val t = restoreTarget
+                val n = restoreName
+                val pw = restorePassword
+                restoreTarget = null
+                restoreName = null
+                restorePassword = ""
+                if (t != null && n != null) viewModel.restoreFromRemote(t, n, pw)
+            },
+            onDismiss = { restoreTarget = null; restoreName = null; restorePassword = "" }
+        )
+    }
+
+    // 上传完成提示
+    LaunchedEffect(networkState) {
+        val done = networkState as? NetworkBackupState.UploadDone
+        if (done != null) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.backup_net_upload_done, done.targetName),
+                Toast.LENGTH_SHORT
+            ).show()
+            viewModel.dismissNetworkState()
+        }
+    }
+
+    if (networkState is NetworkBackupState.Working) {
+        NetworkProgressDialog(networkWorkingTextRes)
+    }
+
+    val remoteList = networkState as? NetworkBackupState.RemoteList
+    if (remoteList != null) {
+        RemoteBackupDialog(
+            targetName = remoteList.targetName,
+            items = remoteList.items,
+            onRestore = { item ->
+                val target = targets.firstOrNull { it.id == remoteList.targetId }
+                if (target != null) {
+                    restoreTarget = target
+                    restoreName = item.name
+                    restorePassword = ""
+                } else {
+                    viewModel.dismissNetworkState()
+                }
+            },
+            onDelete = { item ->
+                val target = targets.firstOrNull { it.id == remoteList.targetId }
+                if (target != null) {
+                    networkWorkingTextRes = R.string.backup_net_loading
+                    viewModel.deleteRemoteBackup(target, item.name)
+                } else {
+                    viewModel.dismissNetworkState()
+                }
+            },
+            onDismiss = { viewModel.dismissNetworkState() }
+        )
+    }
+
+    val netError = networkState as? NetworkBackupState.Error
+    if (netError != null) {
+        ResultDialog(
+            title = stringResource(R.string.backup_operation_failed),
+            message = netError.message,
+            onDismiss = { viewModel.dismissNetworkState() }
+        )
+    }
+
     // 导出完成 → 提示并复位
     LaunchedEffect(state) {
         if (state is BackupState.ExportDone) {
@@ -284,6 +506,8 @@ internal fun BackupSection(viewModel: BackupViewModel) {
 }
 
 private enum class PendingAction { ExportPassword, Import }
+
+private enum class NetworkPickerMode { Upload, Restore }
 
 @Composable
 private fun WorkspaceBackupHint() {
@@ -433,6 +657,31 @@ private fun ProgressDialog() {
         },
         confirmButton = {}
     )
+}
+
+@Composable
+private fun NetworkProgressDialog(messageRes: Int) {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text(stringResource(R.string.backup_processing)) },
+        text = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                Text(stringResource(messageRes))
+            }
+        },
+        confirmButton = {}
+    )
+}
+
+@Composable
+private fun targetSubtitle(target: BackupTarget): String = when (target.type) {
+    BackupTargetType.WEBDAV -> "${stringResource(R.string.backup_net_type_webdav)} · ${target.endpoint}"
+    BackupTargetType.S3 ->
+        "${stringResource(R.string.backup_net_type_s3)} · ${target.endpoint.trimEnd('/')}/${target.bucket}"
 }
 
 @Composable

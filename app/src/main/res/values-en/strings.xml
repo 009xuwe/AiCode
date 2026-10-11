@@ -478,6 +478,49 @@
     <string name="backup_wrong_password">Wrong backup password, or the encrypted backup file is corrupted</string>
     <string name="backup_import_failed">Import failed</string>
 
+    <!-- 网络备份 -->
+    <string name="backup_net_section">Cloud backup</string>
+    <string name="backup_net_targets">Backup targets</string>
+    <string name="backup_net_add_target">Add backup target</string>
+    <string name="backup_net_edit_target">Edit backup target</string>
+    <string name="backup_net_no_target">No cloud backup target yet</string>
+    <string name="backup_net_upload">Upload</string>
+    <string name="backup_net_upload_subtitle">Export the current backup and upload to the selected target</string>
+    <string name="backup_net_restore">Restore from cloud</string>
+    <string name="backup_net_restore_subtitle">Download a backup from the selected target and restore</string>
+    <string name="backup_net_select_target">Select backup target</string>
+    <string name="backup_net_test_connection">Test connection</string>
+    <string name="backup_net_test_success">Connection succeeded</string>
+    <string name="backup_net_test_failed">Connection failed</string>
+    <string name="backup_net_upload_failed">Upload failed</string>
+    <string name="backup_net_list_failed">Failed to read cloud backups</string>
+    <string name="backup_net_delete_failed">Failed to delete cloud backup</string>
+    <string name="backup_net_upload_done">Uploaded to %1$s</string>
+    <string name="backup_net_type_webdav">WebDAV</string>
+    <string name="backup_net_type_s3">Object storage (S3)</string>
+    <string name="backup_net_name">Name</string>
+    <string name="backup_net_endpoint">Server URL</string>
+    <string name="backup_net_endpoint_hint">e.g. https://dav.example.com/dav</string>
+    <string name="backup_net_base_path">Remote directory</string>
+    <string name="backup_net_base_path_hint">WebDAV directory or S3 object prefix</string>
+    <string name="backup_net_username">Username</string>
+    <string name="backup_net_password">Password</string>
+    <string name="backup_net_access_key">Access Key</string>
+    <string name="backup_net_secret_key">Secret Key</string>
+    <string name="backup_net_session_token">Session Token (optional)</string>
+    <string name="backup_net_bucket">Bucket</string>
+    <string name="backup_net_region">Region</string>
+    <string name="backup_net_path_style">Path-style addressing</string>
+    <string name="backup_net_remote_list_title">Cloud backups</string>
+    <string name="backup_net_remote_empty">No backups in the cloud</string>
+    <string name="backup_net_remote_restore">Restore</string>
+    <string name="backup_net_remote_delete">Delete</string>
+    <string name="backup_net_remote_delete_confirm">Delete cloud backup %1$s? This cannot be undone.</string>
+    <string name="backup_net_loading">Loading cloud backups…</string>
+    <string name="backup_net_uploading">Uploading backup…</string>
+    <string name="backup_net_testing">Testing connection…</string>
+    <string name="backup_net_delete_target_confirm">Delete backup target %1$s?</string>
+
     <!-- Chat Drawer -->
     <string name="chat_history">History</string>
     <string name="chat_no_sessions_hint">No sessions yet</string>

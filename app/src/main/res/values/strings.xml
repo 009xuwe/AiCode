@@ -478,6 +478,49 @@
     <string name="backup_wrong_password">备份口令错误，或加密备份文件已损坏</string>
     <string name="backup_import_failed">导入失败</string>
 
+    <!-- 网络备份 -->
+    <string name="backup_net_section">网络备份</string>
+    <string name="backup_net_targets">备份目标</string>
+    <string name="backup_net_add_target">添加备份目标</string>
+    <string name="backup_net_edit_target">编辑备份目标</string>
+    <string name="backup_net_no_target">尚未添加网络备份目标</string>
+    <string name="backup_net_upload">上传到云端</string>
+    <string name="backup_net_upload_subtitle">导出当前备份并上传到所选目标</string>
+    <string name="backup_net_restore">从云端恢复</string>
+    <string name="backup_net_restore_subtitle">从所选目标下载备份并还原</string>
+    <string name="backup_net_select_target">选择备份目标</string>
+    <string name="backup_net_test_connection">测试连接</string>
+    <string name="backup_net_test_success">连接成功</string>
+    <string name="backup_net_test_failed">连接失败</string>
+    <string name="backup_net_upload_failed">上传失败</string>
+    <string name="backup_net_list_failed">读取云端备份失败</string>
+    <string name="backup_net_delete_failed">删除云端备份失败</string>
+    <string name="backup_net_upload_done">已上传到 %1$s</string>
+    <string name="backup_net_type_webdav">WebDAV</string>
+    <string name="backup_net_type_s3">对象存储 (S3)</string>
+    <string name="backup_net_name">名称</string>
+    <string name="backup_net_endpoint">服务器地址</string>
+    <string name="backup_net_endpoint_hint">如 https://dav.example.com/dav</string>
+    <string name="backup_net_base_path">远端目录</string>
+    <string name="backup_net_base_path_hint">WebDAV 目录或 S3 对象前缀</string>
+    <string name="backup_net_username">用户名</string>
+    <string name="backup_net_password">密码</string>
+    <string name="backup_net_access_key">Access Key</string>
+    <string name="backup_net_secret_key">Secret Key</string>
+    <string name="backup_net_session_token">Session Token（可选）</string>
+    <string name="backup_net_bucket">存储桶</string>
+    <string name="backup_net_region">区域</string>
+    <string name="backup_net_path_style">路径风格寻址</string>
+    <string name="backup_net_remote_list_title">云端备份</string>
+    <string name="backup_net_remote_empty">云端暂无备份</string>
+    <string name="backup_net_remote_restore">恢复</string>
+    <string name="backup_net_remote_delete">删除</string>
+    <string name="backup_net_remote_delete_confirm">删除云端备份 %1$s？该操作不可撤销。</string>
+    <string name="backup_net_loading">正在读取云端备份…</string>
+    <string name="backup_net_uploading">正在上传备份…</string>
+    <string name="backup_net_testing">正在测试连接…</string>
+    <string name="backup_net_delete_target_confirm">删除备份目标 %1$s？</string>
+
     <!-- Chat Drawer -->
     <string name="chat_history">历史记录</string>
     <string name="chat_no_sessions_hint">暂无会话</string>
