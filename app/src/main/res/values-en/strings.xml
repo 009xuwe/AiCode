@@ -487,10 +487,10 @@
     <string name="backup_net_edit_target">Edit backup target</string>
     <string name="backup_net_no_target">No cloud backup target yet</string>
     <string name="backup_net_upload">Upload</string>
+    <string name="backup_net_upload_short">Upload</string>
     <string name="backup_net_upload_subtitle">Export the current backup and upload to the selected target</string>
     <string name="backup_net_restore">Restore from cloud</string>
     <string name="backup_net_restore_subtitle">Download a backup from the selected target and restore</string>
-    <string name="backup_net_select_target">Select backup target</string>
     <string name="backup_net_test_connection">Test connection</string>
     <string name="backup_net_test_success">Connection succeeded</string>
     <string name="backup_net_test_failed">Connection failed</string>

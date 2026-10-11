@@ -487,10 +487,10 @@
     <string name="backup_net_edit_target">编辑备份目标</string>
     <string name="backup_net_no_target">尚未添加网络备份目标</string>
     <string name="backup_net_upload">上传到云端</string>
+    <string name="backup_net_upload_short">上传</string>
     <string name="backup_net_upload_subtitle">导出当前备份并上传到所选目标</string>
     <string name="backup_net_restore">从云端恢复</string>
     <string name="backup_net_restore_subtitle">从所选目标下载备份并还原</string>
-    <string name="backup_net_select_target">选择备份目标</string>
     <string name="backup_net_test_connection">测试连接</string>
     <string name="backup_net_test_success">连接成功</string>
     <string name="backup_net_test_failed">连接失败</string>

@@ -4,7 +4,10 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,36 +17,53 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import com.aicode.core.ui.AppSwitch
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import com.aicode.core.ui.AppTextField
-import com.aicode.core.ui.dialogTextFieldColors
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aicode.R
+import com.aicode.core.theme.Radius
 import com.aicode.core.theme.Spacing
-import com.aicode.core.ui.SegmentedTabs
+import com.aicode.core.ui.AppSwitch
+import com.aicode.core.ui.AppTextField
+import com.aicode.core.ui.FloatingTabBar
+import com.aicode.core.ui.FloatingTabItem
 import com.aicode.core.ui.SwipeToDeleteRow
+import com.aicode.core.ui.dialogTextFieldColors
 import com.aicode.feature.backup.domain.BackupOptions
+import com.aicode.feature.backup.domain.RestoreStats
 import com.aicode.feature.backup.domain.WorkspaceBackupMeta
 import com.aicode.feature.backup.domain.remote.BackupTarget
 import com.aicode.feature.backup.domain.remote.BackupTargetType
@@ -51,43 +71,62 @@ import com.aicode.feature.settings.presentation.component.SettingsDivider
 import com.aicode.feature.settings.presentation.component.SettingsGroup
 import com.aicode.feature.settings.presentation.component.SettingsGroupHeader
 import com.aicode.feature.settings.presentation.component.SettingsRow
+import com.aicode.feature.settings.presentation.component.settingsPageBackground
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.AlertCircle
+import compose.icons.feathericons.ArrowLeft
+import compose.icons.feathericons.ChevronRight
 import compose.icons.feathericons.Download
 import compose.icons.feathericons.Plus
+import compose.icons.feathericons.Server
 import compose.icons.feathericons.Upload
+import compose.icons.feathericons.UploadCloud
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.res.stringResource
-import com.aicode.R
 
+/**
+ * 备份与还原整页：底部悬浮 tab 分「本地备份 / 网络备份」两页。
+ *
+ * 本地页 = 导出数据范围配置 + 导出/导入；网络页 = 备份目标列表（卡片）+ 上传/恢复，新增入口在右上角。
+ * 与「连接与同步」「Git」同款：Scaffold + TopAppBar + HorizontalPager + FloatingTabBar。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun BackupSection(viewModel: BackupViewModel) {
+internal fun BackupScreen(
+    viewModel: BackupViewModel,
+    onNavigateBack: () -> Unit
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    val exportOptions by viewModel.exportOptions.collectAsStateWithLifecycle()
+    val targets by viewModel.targets.collectAsStateWithLifecycle()
+    val networkState by viewModel.networkState.collectAsStateWithLifecycle()
+
+    val pagerState = rememberPagerState(initialPage = 0) { 2 }
+    val localScrollState = rememberScrollState()
+    val networkScrollState = rememberScrollState()
+    val tabsScrolling by remember {
+        derivedStateOf { localScrollState.isScrollInProgress || networkScrollState.isScrollInProgress }
+    }
 
     var password by remember { mutableStateOf("") }
     var pendingAction by remember { mutableStateOf<PendingAction?>(null) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var pendingExportPassword by remember { mutableStateOf("") }
     var pendingExportOptions by remember { mutableStateOf(BackupOptions()) }
-    val exportOptions by viewModel.exportOptions.collectAsStateWithLifecycle()
-    val targets by viewModel.targets.collectAsStateWithLifecycle()
-    val networkState by viewModel.networkState.collectAsStateWithLifecycle()
 
     var editingTarget by remember { mutableStateOf<BackupTarget?>(null) }
     var showTargetSheet by remember { mutableStateOf(false) }
     var targetToDelete by remember { mutableStateOf<BackupTarget?>(null) }
-    var targetPickerMode by remember { mutableStateOf<NetworkPickerMode?>(null) }
     var uploadTarget by remember { mutableStateOf<BackupTarget?>(null) }
     var uploadPassword by remember { mutableStateOf("") }
     var restoreTarget by remember { mutableStateOf<BackupTarget?>(null) }
     var restoreName by remember { mutableStateOf<String?>(null) }
     var restorePassword by remember { mutableStateOf("") }
     var networkWorkingTextRes by remember { mutableStateOf(R.string.backup_net_loading) }
-    var backupTab by remember { mutableStateOf(0) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -119,170 +158,82 @@ internal fun BackupSection(viewModel: BackupViewModel) {
         pendingImportUri = uri
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = Spacing.lg)
-            .padding(bottom = Spacing.xl)
-    ) {
-        // 导出数据范围：开关即持久化
-        SettingsGroupHeader(text = stringResource(R.string.backup_select_data))
-        SettingsGroup {
-            SettingsRow(
-                title = stringResource(R.string.common_ai_providers),
-                trailing = {
-                    AppSwitch(
-                        checked = exportOptions.providers,
-                        onCheckedChange = { viewModel.updateExportOptions(exportOptions.copy(providers = it)) }
-                    )
-                }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = stringResource(R.string.backup_data_remote),
-                trailing = {
-                    AppSwitch(
-                        checked = exportOptions.remoteConnections,
-                        onCheckedChange = { viewModel.updateExportOptions(exportOptions.copy(remoteConnections = it)) }
-                    )
-                }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = stringResource(R.string.backup_data_chat_history),
-                trailing = {
-                    AppSwitch(
-                        checked = exportOptions.chatHistory,
-                        onCheckedChange = { viewModel.updateExportOptions(exportOptions.copy(chatHistory = it)) }
-                    )
-                }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = stringResource(R.string.backup_data_mcp),
-                trailing = {
-                    AppSwitch(
-                        checked = exportOptions.mcpServers,
-                        onCheckedChange = { viewModel.updateExportOptions(exportOptions.copy(mcpServers = it)) }
-                    )
-                }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = stringResource(R.string.backup_data_permissions),
-                trailing = {
-                    AppSwitch(
-                        checked = exportOptions.permissionRules,
-                        onCheckedChange = { viewModel.updateExportOptions(exportOptions.copy(permissionRules = it)) }
-                    )
-                }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = stringResource(R.string.backup_data_app_settings),
-                trailing = {
-                    AppSwitch(
-                        checked = exportOptions.appSettings,
-                        onCheckedChange = { viewModel.updateExportOptions(exportOptions.copy(appSettings = it)) }
-                    )
-                }
-            )
-            SettingsDivider()
-            SettingsRow(
-                title = stringResource(R.string.backup_data_workspace),
-                trailing = {
-                    AppSwitch(
-                        checked = exportOptions.workspaceFiles,
-                        onCheckedChange = { viewModel.updateExportOptions(exportOptions.copy(workspaceFiles = it)) }
-                    )
-                }
-            )
-            WorkspaceBackupHint()
-        }
-
-        SegmentedTabs(
-            selected = backupTab,
-            labels = listOf(
-                stringResource(R.string.backup_tab_local),
-                stringResource(R.string.backup_net_section)
-            ),
-            onSelect = { backupTab = it },
-            modifier = Modifier.padding(top = Spacing.lg)
-        )
-
-        if (backupTab == 0) {
-            SettingsGroupHeader(text = stringResource(R.string.backup_actions))
-            SettingsGroup {
-                SettingsRow(
-                    icon = FeatherIcons.Download,
-                    title = stringResource(R.string.backup_export_title),
-                    subtitle = stringResource(R.string.backup_export_subtitle),
-                    enabled = state !is BackupState.Working,
-                    onClick = { pendingAction = PendingAction.ExportPassword }
-                )
-                SettingsDivider()
-                SettingsRow(
-                    icon = FeatherIcons.Upload,
-                    title = stringResource(R.string.backup_import_title),
-                    subtitle = stringResource(R.string.backup_import_subtitle),
-                    enabled = state !is BackupState.Working,
-                    onClick = {
-                        pendingAction = PendingAction.Import
-                        importLauncher.launch(arrayOf("application/octet-stream", "application/gzip", "*/*"))
+    Scaffold(
+        containerColor = settingsPageBackground(),
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = settingsPageBackground(),
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
+                ),
+                title = { Text(stringResource(R.string.settings_backup)) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(FeatherIcons.ArrowLeft, contentDescription = stringResource(R.string.common_back))
                     }
-                )
-            }
-        } else {
-            SettingsGroupHeader(text = stringResource(R.string.backup_net_targets))
-            SettingsGroup {
-                if (targets.isEmpty()) {
-                    SettingsRow(
-                        title = stringResource(R.string.backup_net_no_target),
-                        enabled = false
+                },
+                actions = {
+                    if (pagerState.currentPage == 1) {
+                        IconButton(onClick = {
+                            editingTarget = null
+                            showTargetSheet = true
+                        }) {
+                            Icon(FeatherIcons.Plus, contentDescription = stringResource(R.string.backup_net_add_target))
+                        }
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                if (page == 0) {
+                    LocalBackupTab(
+                        scrollState = localScrollState,
+                        exportOptions = exportOptions,
+                        onUpdateOptions = viewModel::updateExportOptions,
+                        working = state is BackupState.Working,
+                        onExport = { pendingAction = PendingAction.ExportPassword },
+                        onImport = {
+                            pendingAction = PendingAction.Import
+                            importLauncher.launch(arrayOf("application/octet-stream", "application/gzip", "*/*"))
+                        }
                     )
                 } else {
-                    targets.forEach { target ->
-                        SwipeToDeleteRow(
-                            onDelete = { targetToDelete = target },
-                            onClick = {
-                                editingTarget = target
-                                showTargetSheet = true
-                            }
-                        ) {
-                            SettingsRow(
-                                title = target.name,
-                                subtitle = targetSubtitle(target)
-                            )
+                    NetworkBackupTab(
+                        scrollState = networkScrollState,
+                        targets = targets,
+                        working = state is BackupState.Working || networkState is NetworkBackupState.Working,
+                        onEdit = {
+                            editingTarget = it
+                            showTargetSheet = true
+                        },
+                        onDelete = { targetToDelete = it },
+                        onUpload = {
+                            uploadTarget = it
+                            uploadPassword = ""
+                        },
+                        onRestore = {
+                            networkWorkingTextRes = R.string.backup_net_loading
+                            viewModel.loadRemoteBackups(it)
                         }
-                        SettingsDivider()
-                    }
+                    )
                 }
-                SettingsRow(
-                    icon = FeatherIcons.Plus,
-                    title = stringResource(R.string.backup_net_add_target),
-                    onClick = {
-                        editingTarget = null
-                        showTargetSheet = true
-                    }
-                )
-                SettingsDivider()
-                SettingsRow(
-                    icon = FeatherIcons.Upload,
-                    title = stringResource(R.string.backup_net_upload),
-                    subtitle = stringResource(R.string.backup_net_upload_subtitle),
-                    enabled = targets.isNotEmpty() && state !is BackupState.Working && networkState !is NetworkBackupState.Working,
-                    onClick = { targetPickerMode = NetworkPickerMode.Upload }
-                )
-                SettingsDivider()
-                SettingsRow(
-                    icon = FeatherIcons.Download,
-                    title = stringResource(R.string.backup_net_restore),
-                    subtitle = stringResource(R.string.backup_net_restore_subtitle),
-                    enabled = targets.isNotEmpty() && state !is BackupState.Working && networkState !is NetworkBackupState.Working,
-                    onClick = { targetPickerMode = NetworkPickerMode.Restore }
-                )
             }
+
+            FloatingTabBar(
+                pagerState = pagerState,
+                items = listOf(
+                    FloatingTabItem(FeatherIcons.Download, stringResource(R.string.backup_tab_local)),
+                    FloatingTabItem(FeatherIcons.UploadCloud, stringResource(R.string.backup_net_section))
+                ),
+                maskColor = settingsPageBackground(),
+                isScrolling = tabsScrolling,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 
@@ -357,35 +308,6 @@ internal fun BackupSection(viewModel: BackupViewModel) {
                 }
             },
             dismissButton = { TextButton(onClick = { targetToDelete = null }) { Text(stringResource(R.string.common_cancel)) } }
-        )
-    }
-
-    // 目标选择（上传 / 恢复）
-    targetPickerMode?.let { mode ->
-        AlertDialog(
-            onDismissRequest = { targetPickerMode = null },
-            title = { Text(stringResource(R.string.backup_net_select_target)) },
-            text = {
-                Column {
-                    targets.forEach { target ->
-                        TextButton(onClick = {
-                            targetPickerMode = null
-                            when (mode) {
-                                NetworkPickerMode.Upload -> {
-                                    uploadTarget = target
-                                    uploadPassword = ""
-                                }
-                                NetworkPickerMode.Restore -> {
-                                    networkWorkingTextRes = R.string.backup_net_loading
-                                    viewModel.loadRemoteBackups(target)
-                                }
-                            }
-                        }) { Text(target.name) }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { targetPickerMode = null }) { Text(stringResource(R.string.common_cancel)) } }
         )
     }
 
@@ -498,19 +420,19 @@ internal fun BackupSection(viewModel: BackupViewModel) {
         ProgressDialog()
     }
 
-    when (state) {
+    when (val current = state) {
         is BackupState.Error -> ResultDialog(
             title = stringResource(R.string.backup_operation_failed),
-            message = (state as BackupState.Error).message,
+            message = current.message,
             onDismiss = { viewModel.reset() }
         )
         is BackupState.ImportSuccess -> ResultDialog(
             title = stringResource(R.string.backup_import_done),
-            message = buildImportSummary(context, (state as BackupState.ImportSuccess).stats),
+            message = buildImportSummary(context, current.stats),
             onDismiss = { viewModel.reset() }
         )
         is BackupState.WorkspaceSelection -> WorkspaceRestoreDialog(
-            workspaces = (state as BackupState.WorkspaceSelection).workspaces,
+            workspaces = current.workspaces,
             onConfirm = { selected -> viewModel.confirmImportSelection(selected) },
             onDismiss = { viewModel.cancelImportSelection() }
         )
@@ -520,7 +442,282 @@ internal fun BackupSection(viewModel: BackupViewModel) {
 
 private enum class PendingAction { ExportPassword, Import }
 
-private enum class NetworkPickerMode { Upload, Restore }
+/** 本地备份页：导出数据范围 + 导出/导入操作。 */
+@Composable
+private fun LocalBackupTab(
+    scrollState: ScrollState,
+    exportOptions: BackupOptions,
+    onUpdateOptions: (BackupOptions) -> Unit,
+    working: Boolean,
+    onExport: () -> Unit,
+    onImport: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(horizontal = Spacing.lg)
+            .padding(bottom = 96.dp)
+    ) {
+        SettingsGroupHeader(text = stringResource(R.string.backup_select_data))
+        SettingsGroup {
+            SettingsRow(
+                title = stringResource(R.string.common_ai_providers),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.providers,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(providers = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = stringResource(R.string.backup_data_remote),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.remoteConnections,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(remoteConnections = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = stringResource(R.string.backup_data_chat_history),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.chatHistory,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(chatHistory = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = stringResource(R.string.backup_data_mcp),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.mcpServers,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(mcpServers = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = stringResource(R.string.backup_data_permissions),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.permissionRules,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(permissionRules = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = stringResource(R.string.backup_data_app_settings),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.appSettings,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(appSettings = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = stringResource(R.string.backup_data_workspace),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.workspaceFiles,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(workspaceFiles = it)) }
+                    )
+                }
+            )
+            WorkspaceBackupHint()
+        }
+
+        SettingsGroupHeader(text = stringResource(R.string.backup_actions))
+        SettingsGroup {
+            SettingsRow(
+                icon = FeatherIcons.Download,
+                title = stringResource(R.string.backup_export_title),
+                subtitle = stringResource(R.string.backup_export_subtitle),
+                enabled = !working,
+                onClick = onExport
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Upload,
+                title = stringResource(R.string.backup_import_title),
+                subtitle = stringResource(R.string.backup_import_subtitle),
+                enabled = !working,
+                onClick = onImport
+            )
+        }
+    }
+}
+
+/** 网络备份页：备份目标卡片列表（新增在右上角）。 */
+@Composable
+private fun NetworkBackupTab(
+    scrollState: ScrollState,
+    targets: List<BackupTarget>,
+    working: Boolean,
+    onEdit: (BackupTarget) -> Unit,
+    onDelete: (BackupTarget) -> Unit,
+    onUpload: (BackupTarget) -> Unit,
+    onRestore: (BackupTarget) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(horizontal = Spacing.lg)
+            .padding(bottom = 96.dp)
+    ) {
+        SettingsGroupHeader(text = stringResource(R.string.backup_net_targets))
+        SettingsGroup {
+            if (targets.isEmpty()) {
+                SettingsRow(
+                    title = stringResource(R.string.backup_net_no_target),
+                    enabled = false
+                )
+            } else {
+                targets.forEachIndexed { index, target ->
+                    if (index > 0) SettingsDivider()
+                    BackupTargetCard(
+                        target = target,
+                        working = working,
+                        onEdit = { onEdit(target) },
+                        onDelete = { onDelete(target) },
+                        onUpload = { onUpload(target) },
+                        onRestore = { onRestore(target) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 备份目标卡片：图标方块 + 名称（类型徽章）+ 地址副标题 + 编辑箭头，底部上传/恢复操作，左滑删除。 */
+@Composable
+private fun BackupTargetCard(
+    target: BackupTarget,
+    working: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onUpload: () -> Unit,
+    onRestore: () -> Unit
+) {
+    SwipeToDeleteRow(onDelete = onDelete, onClick = onEdit) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TargetIconBox(target.type)
+                Spacer(Modifier.width(Spacing.md))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = target.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(Modifier.width(Spacing.xs))
+                        TargetTypeBadge(target.type)
+                    }
+                    Text(
+                        text = targetSubtitle(target),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = FeatherIcons.ChevronRight,
+                        contentDescription = stringResource(R.string.common_edit),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            SettingsDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onUpload,
+                    enabled = !working,
+                    modifier = Modifier.weight(1f).height(32.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.backup_net_upload_short),
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1
+                    )
+                }
+                OutlinedButton(
+                    onClick = onRestore,
+                    enabled = !working,
+                    modifier = Modifier.weight(1f).height(32.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(
+                        text = stringResource(R.string.backup_net_remote_restore),
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TargetIconBox(type: BackupTargetType) {
+    val icon = when (type) {
+        BackupTargetType.WEBDAV -> FeatherIcons.Server
+        BackupTargetType.S3 -> FeatherIcons.UploadCloud
+    }
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp).align(Alignment.Center)
+        )
+    }
+}
+
+@Composable
+private fun TargetTypeBadge(type: BackupTargetType) {
+    val (text, color) = when (type) {
+        BackupTargetType.WEBDAV -> stringResource(R.string.backup_net_type_webdav) to MaterialTheme.colorScheme.primary
+        BackupTargetType.S3 -> stringResource(R.string.backup_net_type_s3) to MaterialTheme.colorScheme.tertiary
+    }
+    Box(
+        modifier = Modifier
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(Radius.pill))
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Text(text = text, style = MaterialTheme.typography.labelSmall, color = color)
+    }
+}
 
 @Composable
 private fun WorkspaceBackupHint() {
@@ -593,7 +790,7 @@ private fun WorkspaceRestoreDialog(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
@@ -707,7 +904,7 @@ private fun ResultDialog(title: String, message: String, onDismiss: () -> Unit) 
     )
 }
 
-private fun buildImportSummary(context: android.content.Context, stats: com.aicode.feature.backup.domain.RestoreStats): String = buildString {
+private fun buildImportSummary(context: android.content.Context, stats: RestoreStats): String = buildString {
     appendLine(context.getString(R.string.backup_restored_data))
     if (stats.providers > 0) appendLine(context.getString(R.string.backup_stat_providers, stats.providers))
     if (stats.remoteConnections > 0) appendLine(context.getString(R.string.backup_stat_remote_connections, stats.remoteConnections))

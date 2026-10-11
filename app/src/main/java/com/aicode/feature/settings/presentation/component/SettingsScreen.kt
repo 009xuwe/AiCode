@@ -77,7 +77,7 @@ import com.aicode.feature.agent.domain.prompt.PromptFragmentSource
 import com.aicode.feature.agent.domain.mcp.McpServerStatus
 import com.aicode.feature.agent.presentation.component.MarkdownContent
 import com.aicode.feature.agent.presentation.component.MarkdownRenderCache
-import com.aicode.feature.backup.presentation.BackupSection
+import com.aicode.feature.backup.presentation.BackupScreen
 import com.aicode.feature.settings.data.repository.AppThemeMode
 import com.aicode.feature.settings.data.repository.BackgroundSettingsRepository
 import com.aicode.feature.settings.domain.model.AIProviderConfig
@@ -606,6 +606,12 @@ fun SettingsScreen(
                     onNavigateBack = { section = SettingsSection.Menu }
                 )
 
+            current == SettingsSection.Backup ->
+                BackupScreen(
+                    viewModel = androidx.hilt.navigation.compose.hiltViewModel(),
+                    onNavigateBack = { section = SettingsSection.Menu }
+                )
+
             else -> {
             // 存储页的顶栏刷新按钮与页面内容要共用同一个 ViewModel，故在此分支创建；
             // 它的构造即触发一次全盘统计，不能提到 SettingsScreen 顶层（那样每次进设置页都会扫盘）。
@@ -1061,11 +1067,6 @@ fun SettingsScreen(
                     agentSoundEnabled = agentSoundEnabled,
                     onToggleAgentSound = { viewModel.setAgentSoundEnabled(it) }
                 )
-                SettingsSection.Backup -> {
-                    val backupViewModel: com.aicode.feature.backup.presentation.BackupViewModel =
-                        androidx.hilt.navigation.compose.hiltViewModel()
-                    BackupSection(viewModel = backupViewModel)
-                }
                 SettingsSection.TokenStats -> TokenStatsSection(
                     state = tokenStats,
                     onSelectPeriod = { viewModel.setTokenStatsPeriod(it) },
@@ -1081,6 +1082,7 @@ fun SettingsScreen(
                 SettingsSection.SkillEditor -> {} // 已在上方 early return 处理
                 SettingsSection.SubAgentEditor -> {} // 已在上方 early return 处理
                 SettingsSection.RemoteServers -> {} // 已在上方 early return 处理
+                SettingsSection.Backup -> {} // 已在上方 early return 处理
                 SettingsSection.About -> AboutSection(
                     updateCheckEnabled = updateCheckEnabled,
                     updateCheckChannel = updateCheckChannel,
