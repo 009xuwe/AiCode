@@ -26,6 +26,7 @@ import com.aicode.feature.agent.domain.mcp.McpServerConfig
 import com.aicode.feature.agent.domain.mcp.McpServerEntry
 import com.aicode.feature.agent.domain.mcp.McpServerStatus
 import com.aicode.feature.agent.domain.mcp.McpToolDescriptor
+import com.aicode.feature.agent.domain.mcp.auth.McpOAuthCancelledException
 import com.aicode.feature.agent.domain.model.AgentMode
 import com.aicode.feature.agent.domain.permission.PermissionRule
 import com.aicode.feature.agent.domain.permission.PermissionRulesRepository
@@ -138,6 +139,19 @@ sealed interface ContainerImageDownloadUiState {
 
 /** 重置容器的进行状态：重置中才有值，[deleted] 为已删除的文件与目录数。 */
 data class ContainerResetUiState(val name: String, val deleted: Int)
+
+data class McpAuthUiState(
+    val serverName: String? = null,
+    val inProgress: Boolean = false,
+    val error: String? = null,
+    val success: Boolean = false
+)
+
+data class McpImportUiState(
+    val inProgress: Boolean = false,
+    val error: String? = null,
+    val importedCount: Int? = null
+)
 
 data class LogViewerUiState(
     val files: List<String> = emptyList(),
@@ -556,6 +570,12 @@ class SettingsViewModel @Inject constructor(
 
     private val _mcpReloading = MutableStateFlow(false)
     val mcpReloading: StateFlow<Boolean> = _mcpReloading.asStateFlow()
+
+    private val _mcpAuthState = MutableStateFlow(McpAuthUiState())
+    val mcpAuthState: StateFlow<McpAuthUiState> = _mcpAuthState.asStateFlow()
+
+    private val _mcpImportState = MutableStateFlow(McpImportUiState())
+    val mcpImportState: StateFlow<McpImportUiState> = _mcpImportState.asStateFlow()
 
     private val _fetchState = MutableStateFlow<FetchState>(FetchState.Idle)
     val fetchState: StateFlow<FetchState> = _fetchState.asStateFlow()
@@ -1131,6 +1151,76 @@ class SettingsViewModel @Inject constructor(
                 _mcpReloading.value = false
             }
         }
+    }
+
+    /** 触发某个 server 的 OAuth 授权，结果（含失败原因）写入 [mcpAuthState] 供编辑弹窗展示。 */
+    fun authorizeMcpServer(name: String) {
+        if (_mcpAuthState.value.inProgress) return
+        viewModelScope.launch {
+            _mcpAuthState.value = McpAuthUiState(serverName = name, inProgress = true)
+            val result = mcpManager.authorize(name)
+            _mcpAuthState.value = when {
+                result.isSuccess -> McpAuthUiState(serverName = name, success = true)
+                result.exceptionOrNull() is McpOAuthCancelledException -> McpAuthUiState()
+                else -> McpAuthUiState(serverName = name, error = result.exceptionOrNull()?.message)
+            }
+        }
+    }
+
+    fun cancelMcpAuthorize(name: String) {
+        mcpManager.cancelAuthorize(name)
+    }
+
+    /** 从标准 mcpServers JSON 批量导入到指定作用域；同名覆盖。 */
+    fun importMcpServersFromJson(raw: String, scope: McpScope) {
+        viewModelScope.launch {
+            _mcpImportState.value = McpImportUiState(inProgress = true)
+            val parsed = runCatching { mcpConfigRepository.parse(raw) }.getOrElse {
+                _mcpImportState.value = McpImportUiState(error = it.message)
+                return@launch
+            }
+            val valid = parsed.filter { McpServerConfig.isValidName(it.name) }
+            if (valid.isEmpty()) {
+                _mcpImportState.value = McpImportUiState(error = context.getString(R.string.mcp_json_import_empty))
+                return@launch
+            }
+            runCatching {
+                val existing = if (scope == McpScope.GLOBAL) {
+                    mcpConfigRepository.getGlobalServers()
+                } else {
+                    mcpConfigRepository.getProjectServers()
+                }
+                val merged = LinkedHashMap<String, McpServerConfig>()
+                existing.forEach { merged[it.name] = it }
+                valid.forEach { merged[it.name] = it }
+                val list = merged.values.toList()
+                if (scope == McpScope.GLOBAL) {
+                    mcpConfigRepository.setGlobalServers(list)
+                } else {
+                    mcpConfigRepository.setProjectServers(list)
+                }
+            }.onSuccess {
+                _mcpImportState.value = McpImportUiState(importedCount = valid.size)
+                mcpManager.reload()
+            }.onFailure {
+                _mcpImportState.value = McpImportUiState(error = it.message)
+            }
+        }
+    }
+
+    fun clearMcpImportState() {
+        _mcpImportState.value = McpImportUiState()
+    }
+
+    fun logoutMcpServer(name: String) {
+        viewModelScope.launch {
+            mcpManager.logout(name)
+            _mcpAuthState.value = McpAuthUiState()
+        }
+    }
+
+    fun clearMcpAuthState() {
+        _mcpAuthState.value = McpAuthUiState()
     }
 
     fun reloadMcp() {

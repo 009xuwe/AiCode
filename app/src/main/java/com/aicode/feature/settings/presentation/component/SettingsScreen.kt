@@ -70,6 +70,7 @@ import com.aicode.core.ui.pageEnter
 import com.aicode.core.ui.pageExit
 import com.aicode.core.util.LogLevel
 import com.aicode.R
+import com.aicode.feature.agent.domain.mcp.McpScope
 import com.aicode.feature.agent.domain.mcp.McpServerEntry
 import com.aicode.feature.agent.domain.mcp.McpServerConfig
 import com.aicode.feature.agent.domain.prompt.PromptFragment
@@ -205,6 +206,8 @@ fun SettingsScreen(
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     val logLevel by viewModel.logLevel.collectAsStateWithLifecycle()
     val logViewerState by viewModel.logViewerState.collectAsStateWithLifecycle()
+    val mcpAuthState by viewModel.mcpAuthState.collectAsStateWithLifecycle()
+    val mcpImportState by viewModel.mcpImportState.collectAsStateWithLifecycle()
     val mcpEntries by viewModel.mcpEntries.collectAsStateWithLifecycle()
     val mcpStatuses by viewModel.mcpStatuses.collectAsStateWithLifecycle()
     val mcpReloading by viewModel.mcpReloading.collectAsStateWithLifecycle()
@@ -286,6 +289,9 @@ fun SettingsScreen(
     var providerPresetPrefill by remember { mutableStateOf<ProviderPreset?>(null) }
     var showMcpDialog by remember { mutableStateOf(false) }
     var editingMcp by remember { mutableStateOf<McpServerEntry?>(null) }
+    var showMcpAddSheet by remember { mutableStateOf(false) }
+    var showMcpJsonImport by remember { mutableStateOf(false) }
+    var mcpAddScope by remember { mutableStateOf(McpScope.PROJECT) }
 
     LaunchedEffect(onboardingStep) {
         when (onboardingStep) {
@@ -674,10 +680,7 @@ fun SettingsScreen(
                                     )
                                 }
                             }
-                            IconButton(onClick = {
-                                editingMcp = null
-                                showMcpDialog = true
-                            }) {
+                            IconButton(onClick = { showMcpAddSheet = true }) {
                                 Icon(
                                     FeatherIcons.Plus,
                                     contentDescription = stringResource(R.string.settings_add_mcp_server),
@@ -1099,11 +1102,51 @@ fun SettingsScreen(
         } // 右栏结束
     } // Row 结束
 
+    if (showMcpAddSheet) {
+        McpAddSheet(
+            scope = mcpAddScope,
+            onScopeChange = { mcpAddScope = it },
+            onManual = {
+                showMcpAddSheet = false
+                editingMcp = null
+                showMcpDialog = true
+            },
+            onImportJson = {
+                showMcpAddSheet = false
+                showMcpJsonImport = true
+            },
+            onDismiss = { showMcpAddSheet = false }
+        )
+    }
+
+    if (showMcpJsonImport) {
+        LaunchedEffect(mcpImportState.importedCount) {
+            if (mcpImportState.importedCount != null) {
+                showMcpJsonImport = false
+                viewModel.clearMcpImportState()
+            }
+        }
+        McpJsonImportDialog(
+            inProgress = mcpImportState.inProgress,
+            error = mcpImportState.error,
+            onDismiss = {
+                showMcpJsonImport = false
+                viewModel.clearMcpImportState()
+            },
+            onConfirm = { json -> viewModel.importMcpServersFromJson(json, mcpAddScope) }
+        )
+    }
+
     if (showMcpDialog) {
         McpServerEditDialog(
             initial = editingMcp?.server,
             initialScope = editingMcp?.scope,
             tools = viewModel.getMcpServerTools(editingMcp?.server?.name),
+            authState = mcpAuthState,
+            needsAuth = mcpStatuses.firstOrNull { it.name == editingMcp?.server?.name }
+                ?.state == McpServerStatus.State.NEEDS_AUTH,
+            connected = mcpStatuses.firstOrNull { it.name == editingMcp?.server?.name }
+                ?.state == McpServerStatus.State.CONNECTED,
             onRefreshTools = { editingMcp?.let { viewModel.reloadMcpServer(it.server.name) } },
             onOpenLogs = editingMcp?.let { existing ->
                 {
@@ -1113,7 +1156,13 @@ fun SettingsScreen(
                     section = SettingsSection.Log
                 }
             },
-            onDismiss = { showMcpDialog = false },
+            onAuthorize = { viewModel.authorizeMcpServer(it) },
+            onLogout = { viewModel.logoutMcpServer(it) },
+            onCancel = { viewModel.cancelMcpAuthorize(it) },
+            onDismiss = {
+                showMcpDialog = false
+                viewModel.clearMcpAuthState()
+            },
             onSave = { config, scope ->
                 viewModel.upsertMcpServer(editingMcp?.server?.name, editingMcp?.scope, config, scope)
                 showMcpDialog = false
