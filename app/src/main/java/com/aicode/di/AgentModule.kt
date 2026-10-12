@@ -1,6 +1,7 @@
 package com.aicode.di
 
 import android.content.Context
+import com.aicode.core.net.applyTcpKeepAlive
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -238,6 +239,8 @@ object AgentModule {
                     override fun connectionAcquired(call: Call, connection: Connection) {
                         connectionId = Integer.toHexString(System.identityHashCode(connection))
                         protocol = connection.protocol().toString()
+                        // 长连接在后台空闲时会被 NAT/路由器回收，缩短 keepalive 探测间隔以维持映射。
+                        connection.socket().applyTcpKeepAlive()
                     }
 
                     override fun callFailed(call: Call, ioe: IOException) {
