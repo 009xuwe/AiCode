@@ -2024,18 +2024,25 @@ class AIAgentViewModel @Inject constructor(
 
     // region 会话管理
 
-    /** 新建会话；若当前会话还是空的则直接复用，避免堆积空会话。 */
+    /** 新建会话；工作区里已有空会话时直接切过去复用（当前会话为空则优先），避免堆积空会话。 */
     fun newSession() = viewModelScope.launch {
-        if (_currentWorkspace.value.isBlank()) return@launch
+        val ws = _currentWorkspace.value
+        if (ws.isBlank()) return@launch
         val curId = _currentSessionId.value
-        if (curId != null && sessionUseCase.isSessionEmpty(curId)) {
-            setAgentState(curId, AgentUIState.Idle)
+        val reusableId = if (curId != null && sessionUseCase.isSessionEmpty(curId)) {
+            curId
+        } else {
+            sessionUseCase.getEmptySessionOfWorkspace(ws)?.id
+        }
+        if (reusableId != null) {
+            setAgentState(reusableId, AgentUIState.Idle)
+            _currentSessionId.value = reusableId
             return@launch
         }
         // 新会话时异步重连未连接的 MCP server，让 manageMcp 新增的配置真正生效；
         // 不阻塞会话创建——MCP 环境未就绪/超时时不能卡住「新建会话」。
         mcpManager.reconnectUnconnectedAsync()
-        val sid = createAndUpsertSession(_currentWorkspace.value)
+        val sid = createAndUpsertSession(ws)
         _currentSessionId.value = sid
     }
 
