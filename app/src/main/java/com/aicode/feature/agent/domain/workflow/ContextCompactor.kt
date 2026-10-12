@@ -373,7 +373,13 @@ internal object CompactionText {
                         if (tokens(label + remaining.substring(0, mid) + "\n[unit continues]\n") <= budget) low = mid else high = mid - 1
                     }
                     if (low > 0 && low < remaining.length && remaining[low - 1].isHighSurrogate() && remaining[low].isLowSurrogate()) low--
-                    check(low > 0) { "Summary budget cannot hold a history fragment" }
+                    check(low > 0) {
+                        if (budget <= 0) {
+                            "Summary instructions and previous summary already fill the whole budget"
+                        } else {
+                            "Summary budget ($budget tokens) is too small to hold even the first fragment of the current history unit"
+                        }
+                    }
                     result.append(label).append(remaining.substring(0, low)).append("\n[unit continues]\n")
                     offset += low
                     break

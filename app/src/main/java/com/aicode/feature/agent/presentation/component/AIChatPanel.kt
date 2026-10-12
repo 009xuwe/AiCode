@@ -1671,7 +1671,7 @@ fun AIChatPanel(
                         settingsViewModel?.refreshProviderDashboard(it, context = context, force = true)
                     }
                 },
-                tokenEstimated = contextUsages[currentSessionId]?.estimated == true,
+                tokenEstimated = contextUsages[currentSessionId]?.estimated ?: (sessionLastInputTokens <= 0 && currentSessionId != null),
                 tokenProgress = run {
                     val contextLimit = activeModelMetadata?.let {
                         com.aicode.feature.settings.domain.model.ModelContextPolicy.effectiveInputBudget(it)
