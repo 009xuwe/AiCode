@@ -257,6 +257,7 @@ fun SettingsScreen(
     val tokenStats by viewModel.tokenStats.collectAsStateWithLifecycle()
     val updateCheckEnabled by viewModel.updateCheckEnabled.collectAsStateWithLifecycle()
     val updateCheckChannel by viewModel.updateCheckChannel.collectAsStateWithLifecycle()
+    val updateCheckMirror by viewModel.updateCheckMirror.collectAsStateWithLifecycle()
     val containerAnnouncementText by viewModel.containerAnnouncementText.collectAsStateWithLifecycle()
     val containerAnnouncementOutdated by viewModel.containerAnnouncementOutdated.collectAsStateWithLifecycle()
     val promptsAnnouncementText by viewModel.promptsAnnouncementText.collectAsStateWithLifecycle()
@@ -1092,8 +1093,10 @@ fun SettingsScreen(
                 SettingsSection.About -> AboutSection(
                     updateCheckEnabled = updateCheckEnabled,
                     updateCheckChannel = updateCheckChannel,
+                    updateCheckMirror = updateCheckMirror,
                     onToggleUpdateCheck = { viewModel.setUpdateCheckEnabled(it) },
                     onSelectChannel = { viewModel.setUpdateCheckChannel(it) },
+                    onSelectMirror = { viewModel.setUpdateCheckMirror(it) },
                     onCheckUpdate = { viewModel.checkUpdate(manual = true) }
                 )
             }

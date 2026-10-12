@@ -75,6 +75,7 @@ import com.aicode.core.ui.pageEnter
 import com.aicode.core.ui.pageExit
 import com.aicode.core.ui.rememberImageViewerState
 import com.aicode.core.ui.rememberViewerDecodeSpec
+import com.aicode.core.util.ApkInstaller
 import com.aicode.feature.agent.presentation.AIAgentViewModel
 import com.aicode.feature.agent.presentation.AgentAttachment
 import com.aicode.feature.agent.presentation.component.AIChatPanel
@@ -505,7 +506,7 @@ fun AppNavigation(
                         fileName = name,
                         containerPath = path,
                         localPath = "",
-                        mimeType = APK_MIME_TYPE,
+                        mimeType = ApkInstaller.APK_MIME_TYPE,
                         sizeBytes = 0L,
                         isImage = false
                     ),
@@ -873,7 +874,8 @@ fun AppNavigation(
 
     // 检查更新弹窗（全局宿主：自动检测与关于页手动检查共用，覆盖所有页面）
     val updateCheckState by settingsViewModel.updateCheckState.collectAsStateWithLifecycle()
-    if (updateCheckState != UpdateCheckUiState.Idle) {
+    val updateCheckVisible by settingsViewModel.updateCheckVisible.collectAsStateWithLifecycle()
+    if (updateCheckVisible && updateCheckState != UpdateCheckUiState.Idle) {
         val version = remember {
             runCatching {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
@@ -882,11 +884,13 @@ fun AppNavigation(
         UpdateCheckDialog(
             state = updateCheckState,
             currentVersion = version,
+            canInstallInApp = settingsViewModel.inAppInstallSupported,
             onDismiss = { settingsViewModel.dismissUpdateCheck() },
             onOpenRelease = { tag ->
                 openUrl(context, githubReleaseUrl(tag))
                 settingsViewModel.dismissUpdateCheck()
-            }
+            },
+            onDownload = { settingsViewModel.downloadAndInstall() }
         )
     }
 
@@ -1042,8 +1046,6 @@ private val PREVIEWABLE_IMAGE_EXTS = setOf("png", "jpg", "jpeg", "gif", "webp", 
 
 /** 文件树里点击即调系统安装器的安装包格式。 */
 private val INSTALLABLE_APK_EXTS = setOf("apk", "apks", "xapk")
-
-private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
 
 /** 聊天区链接目标 → 归一化后的文件路径；判定为网址（非 `file` scheme）时返回 null。 */
 internal fun asChatFilePath(uri: String): String? {

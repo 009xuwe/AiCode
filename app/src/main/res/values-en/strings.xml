@@ -423,6 +423,29 @@
     <string name="update_channel_latest">Preview</string>
     <string name="update_channel_latest_desc">Also detects pre-releases (RC)</string>
     <string name="about_no_changelog">No changelog available</string>
+    <string name="about_update_mirror">Download mirror</string>
+    <string name="about_update_mirror_desc">Speeds up update downloads; leave empty to use GitHub directly</string>
+    <string name="about_update_mirror_preset_cdn">gh-proxy CDN (default)</string>
+    <string name="about_update_mirror_preset_v6">gh-proxy preferred node</string>
+    <string name="about_update_mirror_preset_direct">GitHub direct</string>
+    <string name="about_update_mirror_invalid">Address must start with http:// or https://</string>
+    <string name="about_update_mirror_default">Restore default</string>
+    <string name="about_update_download_install">Download &amp; install</string>
+    <string name="about_update_install">Install</string>
+    <string name="about_update_browser">Download in browser</string>
+    <string name="about_update_background">Continue in background</string>
+    <string name="about_update_downloading">Downloading %1$d%%</string>
+    <string name="about_update_download_size">%1$s / %2$s</string>
+    <string name="about_update_apk_ready">Update package is ready — tap Install to finish</string>
+    <string name="about_update_need_permission">Allow “install unknown apps” first, then come back and tap Install</string>
+    <string name="about_update_download_failed">Download failed</string>
+    <string name="about_update_download_failed_hint">Change the mirror in Settings → About → Download mirror and retry</string>
+    <string name="about_update_retry">Retry</string>
+    <string name="about_update_verify_not_apk">The downloaded file is not a valid package</string>
+    <string name="about_update_verify_package">The package does not match this app</string>
+    <string name="about_update_verify_signature">Package signature differs from this app — download in browser instead</string>
+    <string name="about_update_verify_not_newer">Package version is not newer than the installed one</string>
+    <string name="about_update_install_failed">No app available to install packages</string>
 
     <!-- Ask User Question -->
     <string name="ask_confirm_title">AI needs your confirmation</string>
