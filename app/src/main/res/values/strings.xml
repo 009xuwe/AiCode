@@ -723,7 +723,6 @@
     <string name="container_empty">暂无容器与镜像</string>
     <string name="container_empty_desc">添加一个自定义镜像，或恢复内置 Alpine。</string>
     <string name="container_restore_builtin">恢复内置 Alpine</string>
-    <string name="container_active">当前使用中</string>
     <string name="container_set_as_default">设为默认容器</string>
     <string name="container_default_badge">默认</string>
     <string name="container_default_desc">远程工作区模式下，本地 MCP 服务运行在此容器上</string>

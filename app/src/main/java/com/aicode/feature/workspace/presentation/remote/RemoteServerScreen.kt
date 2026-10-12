@@ -8,9 +8,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -67,8 +71,8 @@ import compose.icons.feathericons.Server
 import compose.icons.feathericons.Settings
 import compose.icons.feathericons.UploadCloud
 import kotlinx.coroutines.launch
-import sh.calvin.reorderable.ReorderableColumn
 import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,12 +91,16 @@ fun RemoteServerScreen(
     var showSyncSettingsSheet by remember { mutableStateOf(false) }
 
     // 列表滚动状态提升到页面层：滚动时底部 tab 栏淡出（同 Git 页面）。
-    val connScrollState = rememberScrollState()
+    // 连接列表是每行独立卡片（LazyColumn），挂载/FTP 仍是分组卡片（普通滚动容器）。
+    val connListState = rememberLazyListState()
+    val connReorderableState = rememberReorderableLazyListState(connListState) { from, to ->
+        viewModel.reorderConnections(from.index, to.index)
+    }
     val mountScrollState = rememberScrollState()
     val ftpScrollState = rememberScrollState()
     val tabsScrolling by remember {
         derivedStateOf {
-            connScrollState.isScrollInProgress ||
+            connListState.isScrollInProgress ||
                 mountScrollState.isScrollInProgress ||
                 ftpScrollState.isScrollInProgress
         }
@@ -162,54 +170,62 @@ fun RemoteServerScreen(
                             }
                         )
                     } else {
-                        SettingsList(scrollState = connScrollState) {
-                            // 长按拖拽排序：与「供应商」页同一套交互（长按手柄 + 缩放/阴影反馈）。
-                            ReorderableColumn(
-                                list = uiState.connections,
-                                onSettle = { fromIndex, toIndex -> viewModel.reorderConnections(fromIndex, toIndex) }
-                            ) { index, conn, isDragging ->
-                                val dragScale by animateFloatAsState(
-                                    targetValue = if (isDragging) 0.95f else 1f,
-                                    animationSpec = tween(durationMillis = if (isDragging) 120 else 220),
-                                    label = "connectionDragScale"
-                                )
-                                val dragElevation by animateDpAsState(
-                                    targetValue = if (isDragging) 8.dp else 0.dp,
-                                    animationSpec = tween(durationMillis = if (isDragging) 120 else 220),
-                                    label = "connectionDragElevation"
-                                )
-                                ReorderableItem {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        if (index > 0) SettingsDivider()
-                                        Surface(
-                                            shape = RoundedCornerShape(if (isDragging) Radius.mdLarge else 0.dp),
-                                            color = MaterialTheme.semanticColors.cardSurface,
-                                            shadowElevation = dragElevation,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .zIndex(if (isDragging) 1f else 0f)
-                                                .graphicsLayer {
-                                                    scaleX = dragScale
-                                                    scaleY = dragScale
-                                                }
-                                        ) {
-                                            RemoteConnectionCard(
-                                                conn = conn,
-                                                onEdit = {
-                                                    connectionToEdit = it
-                                                    showAddConnectionDialog = true
+                        // 与「供应商」页一致：一行一张独立圆角卡片（8dp 间距），长按行内容拖拽排序。
+                        LazyColumn(
+                            state = connListState,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = Spacing.lg),
+                            // 底部预留 tab 栏高度，最后一行可完全滚到悬浮 tab 栏之上
+                            contentPadding = PaddingValues(top = Spacing.sm, bottom = 70.dp),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        ) {
+                            itemsIndexed(
+                                items = uiState.connections,
+                                key = { _, conn -> conn.id }
+                            ) { _, conn ->
+                                ReorderableItem(
+                                    state = connReorderableState,
+                                    key = conn.id
+                                ) { isDragging ->
+                                    val dragScale by animateFloatAsState(
+                                        targetValue = if (isDragging) 0.95f else 1f,
+                                        animationSpec = tween(durationMillis = if (isDragging) 120 else 220),
+                                        label = "connectionDragScale"
+                                    )
+                                    val dragElevation by animateDpAsState(
+                                        targetValue = if (isDragging) 8.dp else 0.dp,
+                                        animationSpec = tween(durationMillis = if (isDragging) 120 else 220),
+                                        label = "connectionDragElevation"
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(Radius.lg),
+                                        color = MaterialTheme.semanticColors.cardSurface,
+                                        shadowElevation = dragElevation,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .zIndex(if (isDragging) 1f else 0f)
+                                            .graphicsLayer {
+                                                scaleX = dragScale
+                                                scaleY = dragScale
+                                            }
+                                    ) {
+                                        RemoteConnectionCard(
+                                            conn = conn,
+                                            onEdit = {
+                                                connectionToEdit = it
+                                                showAddConnectionDialog = true
+                                            },
+                                            onDelete = { pendingDeleteConnection = it },
+                                            dragModifier = Modifier.longPressDraggableHandle(
+                                                onDragStarted = {
+                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                                                 },
-                                                onDelete = { pendingDeleteConnection = it },
-                                                dragModifier = Modifier.longPressDraggableHandle(
-                                                    onDragStarted = {
-                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-                                                    },
-                                                    onDragStopped = {
-                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
-                                                    }
-                                                )
+                                                onDragStopped = {
+                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                                                }
                                             )
-                                        }
+                                        )
                                     }
                                 }
                             }

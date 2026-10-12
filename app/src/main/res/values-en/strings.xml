@@ -723,7 +723,6 @@
     <string name="container_empty">No containers or images</string>
     <string name="container_empty_desc">Add a custom image, or restore the built-in Alpine.</string>
     <string name="container_restore_builtin">Restore Built-in Alpine</string>
-    <string name="container_active">Currently in use</string>
     <string name="container_set_as_default">Set as default container</string>
     <string name="container_default_badge">Default</string>
     <string name="container_default_desc">In remote workspace mode, local MCP services run in this container</string>

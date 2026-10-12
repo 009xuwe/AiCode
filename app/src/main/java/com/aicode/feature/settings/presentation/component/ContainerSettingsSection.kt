@@ -14,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -27,6 +28,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -73,6 +77,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -104,8 +109,8 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import sh.calvin.reorderable.ReorderableColumn
 import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
  * 容器镜像二级页：所有容器（含内置 Alpine）统一管理——列表单选切换、编辑、重置、左滑删除；
@@ -170,20 +175,28 @@ internal fun ContainerSection(
             }
         }
     } else {
-        Column(
+        // 与「供应商」页一致：一行一张独立圆角卡片（8dp 间距），长按行内容拖拽排序
+        val listState = rememberLazyListState()
+        val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+            onReorder(from.index, to.index)
+        }
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.lg)
-                .padding(bottom = Spacing.xl)
+                .padding(bottom = Spacing.xl),
+            contentPadding = PaddingValues(top = Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            SettingsGroup {
-                // 长按拖拽排序：与「供应商」页同一套交互（长按手柄 + 缩放/阴影反馈），
-                // 顺序即存储顺序，新增项插到最前，编辑不改位置。
-                ReorderableColumn(
-                    list = profiles,
-                    onSettle = { fromIndex, toIndex -> onReorder(fromIndex, toIndex) }
-                ) { index, profile, isDragging ->
+            itemsIndexed(
+                items = profiles,
+                key = { _, profile -> profile.id }
+            ) { _, profile ->
+                ReorderableItem(
+                    state = reorderableState,
+                    key = profile.id
+                ) { isDragging ->
                     val dragScale by animateFloatAsState(
                         targetValue = if (isDragging) 0.95f else 1f,
                         animationSpec = tween(durationMillis = if (isDragging) 120 else 220),
@@ -194,43 +207,36 @@ internal fun ContainerSection(
                         animationSpec = tween(durationMillis = if (isDragging) 120 else 220),
                         label = "containerDragElevation"
                     )
-                    ReorderableItem {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (index > 0) {
-                                SettingsDivider()
+                    Surface(
+                        shape = RoundedCornerShape(Radius.lg),
+                        color = MaterialTheme.semanticColors.cardSurface,
+                        shadowElevation = dragElevation,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .graphicsLayer {
+                                scaleX = dragScale
+                                scaleY = dragScale
                             }
-                            Surface(
-                                shape = RoundedCornerShape(if (isDragging) Radius.mdLarge else 0.dp),
-                                color = MaterialTheme.semanticColors.cardSurface,
-                                shadowElevation = dragElevation,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .zIndex(if (isDragging) 1f else 0f)
-                                    .graphicsLayer {
-                                        scaleX = dragScale
-                                        scaleY = dragScale
-                                    }
-                            ) {
-                                ContainerRow(
-                                    profile = profile,
-                                    active = profile.id == activeProfileId,
-                                    defaultContainerId = defaultContainerId,
-                                    osId = osMap[profile.id],
-                                    subtitle = profileSubtitle(context, profile, remoteConnections),
-                                    onSelect = { if (profile.id != activeProfileId) pendingSwitch = profile },
-                                    onEdit = { editingProfile = profile },
-                                    onDelete = { deletingProfile = profile },
-                                    dragModifier = Modifier.longPressDraggableHandle(
-                                        onDragStarted = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
-                                        },
-                                        onDragStopped = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
-                                        }
-                                    )
-                                )
-                            }
-                        }
+                    ) {
+                        ContainerRow(
+                            profile = profile,
+                            active = profile.id == activeProfileId,
+                            defaultContainerId = defaultContainerId,
+                            osId = osMap[profile.id],
+                            subtitle = profileSubtitle(context, profile, remoteConnections),
+                            onSelect = { if (profile.id != activeProfileId) pendingSwitch = profile },
+                            onEdit = { editingProfile = profile },
+                            onDelete = { deletingProfile = profile },
+                            dragModifier = Modifier.longPressDraggableHandle(
+                                onDragStarted = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                                },
+                                onDragStopped = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                                }
+                            )
+                        )
                     }
                 }
             }
@@ -366,9 +372,9 @@ private fun osLogo(osId: String?): Painter? = when (osId) {
 }
 
 /**
- * 单个容器行：分组内白底行，左侧图标方块 + 名称（内置带徽章）/副标题，右侧选中勾选 + 编辑/重置按钮，左滑删除。
- * 行主体点击切换镜像（未选中时弹确认）。[dragModifier] 由列表侧提供（长按拖动排序的手柄），
- * 只挂在左侧信息区，避免与左滑删除抢手势。
+ * 单个容器行：卡片内白底行，左侧图标方块 + 名称（内置带徽章）/副标题，右侧编辑按钮，左滑删除。
+ * 行主体点击切换镜像（未选中时弹确认）；选中的容器以名称变主题色表示（不再额外放勾选图标）。
+ * [dragModifier] 由列表侧提供（长按拖动排序的手柄），只挂在左侧信息区，避免与左滑删除抢手势。
  */
 @Composable
 private fun ContainerRow(
@@ -392,7 +398,9 @@ private fun ContainerRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.lg, vertical = 12.dp),
+                .padding(horizontal = Spacing.lg, vertical = 12.dp)
+                // 去掉勾选图标后，选中状态靠语义属性保留给读屏
+                .semantics { selected = active },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
@@ -442,7 +450,8 @@ private fun ContainerRow(
                             text = profile.name,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Normal,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            // 选中态：名称变主题色（替代原先行尾的勾选图标）
+                            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
@@ -481,17 +490,6 @@ private fun ContainerRow(
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
-            }
-
-            // 选中勾选
-            if (active) {
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Icon(
-                    imageVector = FeatherIcons.Check,
-                    contentDescription = stringResource(R.string.container_active),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
             }
 
             // 编辑入口（所有容器）：行尾铅笔，点击进入编辑弹窗（行主体点击是切换）
