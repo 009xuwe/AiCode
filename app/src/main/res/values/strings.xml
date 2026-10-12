@@ -534,6 +534,7 @@
     <string name="editor_unsaved_message">当前文件有未保存的修改，是否保存？</string>
     <string name="editor_discard">放弃</string>
     <string name="editor_save_and_exit">保存并退出</string>
+    <string name="editor_save_and_switch">保存并切换</string>
     <string name="editor_dont_save">不保存</string>
     <string name="editor_md_preview">预览 Markdown</string>
     <string name="editor_md_show_source">显示源码</string>

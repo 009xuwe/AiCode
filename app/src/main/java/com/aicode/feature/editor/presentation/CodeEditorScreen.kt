@@ -39,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -90,6 +91,14 @@ import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import kotlin.math.abs
 
 /**
+ * 待确认的离开动作：确认保存后执行。
+ *
+ * [confirmLabelRes] 是未保存提示里确认键的文案：关编辑页是「保存并退出」，
+ * 大屏右栏换个文件接着看是「保存并切换」。
+ */
+private data class PendingLeave(val confirmLabelRes: Int, val action: () -> Unit)
+
+/**
  * 独立全屏代码编辑页。支持语法高亮、撤销/重做、底部符号快捷栏与保存。
  * 保存直接覆盖写回，不做外部并发写检测——AI 工具或终端可能同时改同一文件。
  */
@@ -100,6 +109,7 @@ fun CodeEditorScreen(
     onBack: () -> Unit,
     initialLine: Int = 0,
     embedded: Boolean = false,
+    leaveGuard: EditorLeaveGuard? = null,
     viewModel: CodeEditorViewModel = hiltViewModel()
 ) {
     LaunchedEffect(path) { viewModel.load(path) }
@@ -108,11 +118,14 @@ fun CodeEditorScreen(
     val editorRef = remember { mutableStateOf<CodeEditor?>(null) }
     var canUndo by remember { mutableStateOf(false) }
     var canRedo by remember { mutableStateOf(false) }
-    var dirty by remember { mutableStateOf(false) }
+    // 脏标记的 State 单独留一份引用：注册给宿主的回调要读「调用时」的值，不能捕获布尔快照。
+    val dirtyState = remember { mutableStateOf(false) }
+    var dirty by dirtyState
     // 已保存（或刚加载）的内容。脏标记按与它的差异判定，撤销回原样时才能自行复位。
     val baselineText = remember { mutableStateOf("") }
     var pendingSaveText by remember { mutableStateOf("") }
-    var pendingExit by remember { mutableStateOf(false) }
+    // 待确认的离开动作（关页面 / 大屏右栏换文件），保存成功后执行。
+    var pendingLeave by remember { mutableStateOf<PendingLeave?>(null) }
     var showUnsavedDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var previewMode by remember { mutableStateOf(false) }
@@ -130,10 +143,32 @@ fun CodeEditorScreen(
         canUndo = false
         canRedo = false
         dirty = false
-        pendingExit = false
+        pendingLeave = null
         cursorLine = 1
         cursorColumn = 1
         previewMode = false
+    }
+
+    // 大屏右栏宿主（点文件树 / 点聊天里的路径链接）要换文件时，先过这里：无脏数据直接放行，
+    // 有脏数据复用同一套保存提示，确认后再换，避免静默丢弃未保存的修改。
+    LaunchedEffect(leaveGuard) {
+        leaveGuard?.register { onLeave ->
+            if (!dirtyState.value) {
+                onLeave()
+            } else {
+                pendingLeave = PendingLeave(R.string.editor_save_and_switch, onLeave)
+                showUnsavedDialog = true
+            }
+        }
+    }
+    // 脏状态实时上报给宿主。
+    LaunchedEffect(leaveGuard, dirty) { leaveGuard?.isDirty = dirtyState.value }
+    // 离开组合（右栏切到终端、收起等）时撤掉上报与处理，不拿旧状态拦人。
+    DisposableEffect(leaveGuard) {
+        onDispose {
+            leaveGuard?.register(null)
+            leaveGuard?.isDirty = false
+        }
     }
 
     val context = LocalContext.current
@@ -146,13 +181,13 @@ fun CodeEditorScreen(
                     baselineText.value = pendingSaveText
                     dirty = false
                     Toast.makeText(context, savedText, Toast.LENGTH_SHORT).show()
-                    if (pendingExit) {
-                        pendingExit = false
-                        onBack()
+                    pendingLeave?.let { leave ->
+                        pendingLeave = null
+                        leave.action()
                     }
                 }
                 is SaveResult.Error -> {
-                    pendingExit = false
+                    pendingLeave = null
                     Toast.makeText(
                         context,
                         result.detail ?: saveFailedText,
@@ -170,7 +205,12 @@ fun CodeEditorScreen(
     }
 
     fun handleBack() {
-        if (dirty) showUnsavedDialog = true else onBack()
+        if (dirty) {
+            pendingLeave = PendingLeave(R.string.editor_save_and_exit) { onBack() }
+            showUnsavedDialog = true
+        } else {
+            onBack()
+        }
     }
 
     BackHandler(enabled = !showSettings && !previewMode) { handleBack() }
@@ -340,20 +380,26 @@ fun CodeEditorScreen(
 
     if (showUnsavedDialog) {
         AlertDialog(
-            onDismissRequest = { showUnsavedDialog = false },
+            onDismissRequest = {
+                // 取消：丢掉待执行的离开动作，留在当前文件。
+                showUnsavedDialog = false
+                pendingLeave = null
+            },
             title = { Text(stringResource(R.string.editor_unsaved_title)) },
             text = { Text(stringResource(R.string.editor_unsaved_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     showUnsavedDialog = false
-                    pendingExit = true
                     requestSave()
-                }) { Text(stringResource(R.string.editor_save_and_exit)) }
+                }) { Text(stringResource(pendingLeave?.confirmLabelRes ?: R.string.editor_save_and_exit)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showUnsavedDialog = false
-                    onBack()
+                    pendingLeave?.let { leave ->
+                        pendingLeave = null
+                        leave.action()
+                    }
                 }) { Text(stringResource(R.string.editor_dont_save)) }
             }
         )
