@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -279,24 +280,31 @@ fun CodeEditorScreen(
         when (val s = state) {
             is EditorUiState.Loading -> CenterBox(content) { CircularProgressIndicator() }
             is EditorUiState.Success -> Box(modifier = content) {
-                EditorSurface(
-                    state = s,
-                    modifier = Modifier.fillMaxSize(),
-                    editorRef = editorRef,
-                    settings = settings,
-                    baselineText = baselineText,
-                    initialLine = initialLine,
-                    onBackgroundResolved = { editorBackground = it },
-                    onCursorChanged = { l, c ->
-                        cursorLine = l
-                        cursorColumn = c
-                    },
-                    onContentChanged = { undo, redo, changed ->
-                        canUndo = undo
-                        canRedo = redo
-                        dirty = changed
-                    }
-                )
+                // 文档身份作 key：窄窗全屏路由每次导航都是新组合，编辑器自然重建；
+                // 但大屏右栏常驻在聊天页里，切换文件时这个组合位置不变，AndroidView 的 factory
+                // 不会重跑，会一直显示上一个文件的内容、沿用上一个文件的语法语言。
+                // 这里按加载出的文档（内容 + 语法）重建编辑器，与窄窗行为对齐。
+                // 只按内容/语法而非路径作 key：路径先变、内容后到，按路径会先用旧内容白建一次。
+                key(s.content, s.scopeName) {
+                    EditorSurface(
+                        state = s,
+                        modifier = Modifier.fillMaxSize(),
+                        editorRef = editorRef,
+                        settings = settings,
+                        baselineText = baselineText,
+                        initialLine = initialLine,
+                        onBackgroundResolved = { editorBackground = it },
+                        onCursorChanged = { l, c ->
+                            cursorLine = l
+                            cursorColumn = c
+                        },
+                        onContentChanged = { undo, redo, changed ->
+                            canUndo = undo
+                            canRedo = redo
+                            dirty = changed
+                        }
+                    )
+                }
                 if (previewMode) {
                     // 预览覆盖在编辑器上方（编辑器保留在组合中不销毁，切回源码不丢状态）。
                     // 进入预览时快照编辑器当前文本，确保反映未保存的编辑。
