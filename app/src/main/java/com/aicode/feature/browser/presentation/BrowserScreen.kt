@@ -476,7 +476,7 @@ private fun BrowserTopBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (!embedded) Modifier.statusBarsPadding() else Modifier)
+                .statusBarsPadding()
         ) {
             Row(
                 modifier = Modifier
@@ -664,7 +664,7 @@ private fun BrowserBottomBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (!embedded) Modifier.navigationBarsPadding() else Modifier)
+                .navigationBarsPadding()
         ) {
             HorizontalDivider(
                 thickness = 0.5.dp,

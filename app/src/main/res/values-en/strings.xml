@@ -1509,6 +1509,8 @@
     <string name="terminal_font_delete">Delete this font</string>
     <string name="terminal_font_import_failed">Import failed. Please pick a valid ttf / otf / ttc font file</string>
     <string name="terminal_preview_text">Terminal Preview</string>
+    <string name="terminal_theme_follow_app">Follow App</string>
+    <string name="terminal_theme_github_light">GitHub Light</string>
     <string name="terminal_theme_termius_dark">Termius Dark</string>
     <string name="terminal_theme_dracula">Dracula</string>
     <string name="terminal_theme_one_dark">One Dark</string>
