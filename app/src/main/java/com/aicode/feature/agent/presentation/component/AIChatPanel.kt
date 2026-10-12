@@ -981,17 +981,15 @@ fun AIChatPanel(
         }
     }
 
-    // isAssistantSettled 依赖「末尾恰好是 ASSISTANT 且前缀吻合」，但至少三类路径走不到它：
-    // 用户停止后内容未落库（末尾还是 USER）、整轮只有思考没有正文（workflow 不发 AssistantText，
-    // 什么都不落库）、以及带工具调用的回合里 TOOL 消息先落库把末尾顶掉。此时流式状态已被
-    // ViewModel 清空，retained 里只剩旧文：整轮结束（isBusy 翻 false）或末尾已是本轮工具
-    // 结果（说明正文早已落库）时必须兜底清空，否则旧思考/正文会一直挂在尾巴上，
-    // 计时器还在走表（「正在思考（耗时 N 秒）」），下一轮又像重复出现。
-    LaunchedEffect(isBusy, lastMsg?.role) {
-        if (!isBusy || lastMsg?.role == MessageRole.TOOL) {
-            retainedStreamingText = null
-            retainedStreamingReasoning = null
-        }
+    // retained 快照只在「流式已结束、落库消息尚未出现」的短窗口里兜底，撑住底部气泡不闪空；
+    // 末尾消息一旦出现或更替（有新消息落库），或整轮结束，兜底使命即结束。
+    // 不能只按 lastMsg.role 判定：多步工具回合里末尾在 TOOL→TOOL 之间来回，role 不变则本 effect
+    // 不重启；而助手消息落库又常与紧随其后的工具消息被合并派发，UI 观察不到「助手消息成为末尾」
+    // 那一帧，isAssistantSettled 的前缀校验恒不成立——两条清除路径同时失效，旧思考/正文就会一直
+    // 挂在尾巴上、新内容反而出现在它上方。改按末尾消息 id 判定，任何新消息落库都会触发清空。
+    LaunchedEffect(isBusy, lastMsg?.id) {
+        retainedStreamingText = null
+        retainedStreamingReasoning = null
     }
 
     val displayStreamingText = if (isAssistantSettled) null else (streamingText ?: retainedStreamingText)
