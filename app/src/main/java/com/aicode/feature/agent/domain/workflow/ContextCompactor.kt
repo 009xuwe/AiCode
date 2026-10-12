@@ -153,8 +153,14 @@ class ContextCompactor @Inject constructor(
                 AgentMessage.AssistantMessage(id = summaryId, content = summary)
             ) + tail
             val compactedTokens = CompactionText.estimateRequest(systemPrompt, tools, compacted)
-            check(compactedTokens < estimatedTokens && compactedTokens <= inputBudget) {
-                "Summary and retained history do not fit the main model input budget or do not reduce it"
+            // 摘要由模型生成，长度不受控：短历史里摘要可能比被替换的原消息更长，压缩没有收益。
+            // 这不是失败，只是不该落库，静默保留原历史。
+            if (compactedTokens >= estimatedTokens) {
+                FileLogger.i(TAG, "压缩未缩减 token（$estimatedTokens → $compactedTokens），保留原历史")
+                return unchanged
+            }
+            check(compactedTokens <= inputBudget) {
+                "Summary and retained history do not fit the main model input budget"
             }
             if (sessionId != null) {
                 agentMessageDao.commitCompaction(
