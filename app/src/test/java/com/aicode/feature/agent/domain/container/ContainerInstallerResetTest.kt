@@ -133,7 +133,7 @@ class ContainerInstallerResetTest {
     private fun fakeRootfs(dir: File, marker: String): File {
         File(dir, "usr/bin").mkdirs()
         File(dir, "usr/bin/busybox").writeText("bin")
-        File(dir, marker).writeText("alpine-3.21.3-v6")
+        File(dir, marker).writeText("alpine-3.21.8-v7")
         return dir
     }
 

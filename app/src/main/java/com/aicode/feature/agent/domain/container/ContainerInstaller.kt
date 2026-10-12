@@ -223,14 +223,14 @@ class ContainerInstaller @Inject constructor(
         }
 
         /**
-         * 与 assets 里 alpine-rootfs 版本对应的 apk 分支，用于拼镜像源地址。
-         * 固定 v3.21：与 [INSTALL_VERSION]（alpine-3.21.3）一致；该版本 apk-tools 2.14 在 proot 下可靠。
-         */
-        /**
          * 安装版本。换 rootfs / proot 或改安装逻辑时 +1，触发重新解压。
          * 与 assets 里实际放的 Alpine 版本保持一致以便排查。
+         *
+         * 内置 rootfs 仍固定在 3.21 分支：该分支的 apk-tools 2.14 在 proot 下可靠，apk 源分支
+         * 也据此固定（见 assets/aicode/lib/env-common.sh 的兜底 v3.21）。它**不参与**「下载镜像」
+         * 列表——那份列表由 CI 每日同步上游、版本随补丁滚动，两者刻意不共享版本号。
          */
-        private const val INSTALL_VERSION = "alpine-3.21.3-v6"
+        private const val INSTALL_VERSION = "alpine-3.21.8-v7"
 
         /** 删 rootfs 时每删这么多条目回调一次进度（太密会刷爆 UI 状态流）。 */
         private const val DELETE_PROGRESS_STEP = 2000
