@@ -737,6 +737,7 @@
     <string name="container_not_ready_hint">Container is not initialized yet. Please open the Terminal page to complete initialization first.</string>
     <string name="container_file_selected">File selected</string>
     <string name="container_select_image_file">Select tar.gz / tgz / tar.xz / txz image file</string>
+    <string name="container_sort_long_press">Long press to reorder</string>
     <string name="container_mount_local">Local path</string>
     <string name="container_mount_container">Container path</string>
     <string name="container_no_bindings">No mounts</string>
@@ -1366,6 +1367,7 @@
     <string name="remote_edit_connection">Edit Connection Channel</string>
     <string name="remote_add_connection">Add Connection Channel</string>
     <string name="remote_connection_name_hint">Connection name</string>
+    <string name="remote_connection_sort_long_press">Long press to reorder</string>
     <string name="remote_host_address">Host</string>
     <string name="remote_port">Port</string>
     <string name="remote_password">Password</string>

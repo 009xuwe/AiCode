@@ -1,5 +1,8 @@
 package com.aicode.feature.workspace.presentation.remote
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -21,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -34,11 +39,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aicode.core.theme.Radius
 import com.aicode.core.theme.Spacing
+import com.aicode.core.theme.semanticColors
 import com.aicode.core.ui.FloatingTabBar
 import com.aicode.core.ui.FloatingTabItem
 import com.aicode.feature.settings.presentation.component.SettingsDivider
@@ -56,6 +67,8 @@ import compose.icons.feathericons.Server
 import compose.icons.feathericons.Settings
 import compose.icons.feathericons.UploadCloud
 import kotlinx.coroutines.launch
+import sh.calvin.reorderable.ReorderableColumn
+import sh.calvin.reorderable.ReorderableItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +78,8 @@ fun RemoteServerScreen(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // 长按拖拽排序的触感反馈（与「供应商」页一致：进入拖拽与松手各一次）
+    val hapticFeedback = LocalHapticFeedback.current
     val pagerState = rememberPagerState(initialPage = 0) { 3 }
     var showAddConnectionDialog by remember { mutableStateOf(false) }
     var showAddMountDialog by remember { mutableStateOf(false) }
@@ -148,18 +163,55 @@ fun RemoteServerScreen(
                         )
                     } else {
                         SettingsList(scrollState = connScrollState) {
-                            uiState.connections.forEachIndexed { index, conn ->
-                                if (index > 0) {
-                                    SettingsDivider()
-                                }
-                                RemoteConnectionCard(
-                                    conn = conn,
-                                    onEdit = {
-                                        connectionToEdit = it
-                                        showAddConnectionDialog = true
-                                    },
-                                    onDelete = { pendingDeleteConnection = it }
+                            // 长按拖拽排序：与「供应商」页同一套交互（长按手柄 + 缩放/阴影反馈）。
+                            ReorderableColumn(
+                                list = uiState.connections,
+                                onSettle = { fromIndex, toIndex -> viewModel.reorderConnections(fromIndex, toIndex) }
+                            ) { index, conn, isDragging ->
+                                val dragScale by animateFloatAsState(
+                                    targetValue = if (isDragging) 0.95f else 1f,
+                                    animationSpec = tween(durationMillis = if (isDragging) 120 else 220),
+                                    label = "connectionDragScale"
                                 )
+                                val dragElevation by animateDpAsState(
+                                    targetValue = if (isDragging) 8.dp else 0.dp,
+                                    animationSpec = tween(durationMillis = if (isDragging) 120 else 220),
+                                    label = "connectionDragElevation"
+                                )
+                                ReorderableItem {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        if (index > 0) SettingsDivider()
+                                        Surface(
+                                            shape = RoundedCornerShape(if (isDragging) Radius.mdLarge else 0.dp),
+                                            color = MaterialTheme.semanticColors.cardSurface,
+                                            shadowElevation = dragElevation,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .zIndex(if (isDragging) 1f else 0f)
+                                                .graphicsLayer {
+                                                    scaleX = dragScale
+                                                    scaleY = dragScale
+                                                }
+                                        ) {
+                                            RemoteConnectionCard(
+                                                conn = conn,
+                                                onEdit = {
+                                                    connectionToEdit = it
+                                                    showAddConnectionDialog = true
+                                                },
+                                                onDelete = { pendingDeleteConnection = it },
+                                                dragModifier = Modifier.longPressDraggableHandle(
+                                                    onDragStarted = {
+                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                                                    },
+                                                    onDragStopped = {
+                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                                                    }
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

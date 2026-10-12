@@ -737,6 +737,7 @@
     <string name="container_not_ready_hint">容器尚未初始化，请先进入终端页面完成初始化后再执行命令</string>
     <string name="container_file_selected">已选择文件</string>
     <string name="container_select_image_file">选择 tar.gz / tgz / tar.xz / txz 镜像文件</string>
+    <string name="container_sort_long_press">长按拖动排序</string>
     <string name="container_mount_local">本地目录</string>
     <string name="container_mount_container">容器目录</string>
     <string name="container_no_bindings">无挂载</string>
@@ -1366,6 +1367,7 @@
     <string name="remote_edit_connection">编辑连接通道</string>
     <string name="remote_add_connection">添加连接通道</string>
     <string name="remote_connection_name_hint">连接名称</string>
+    <string name="remote_connection_sort_long_press">长按拖动排序</string>
     <string name="remote_host_address">主机地址</string>
     <string name="remote_port">端口</string>
     <string name="remote_password">密码</string>
