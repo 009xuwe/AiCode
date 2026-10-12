@@ -639,6 +639,17 @@
     <string name="checkpoint_restore_conversation_desc">保持当前代码，将对话截断回滚至此点</string>
     <string name="checkpoint_restore_code">仅恢复代码</string>
     <string name="checkpoint_restore_code_desc">恢复代码至此点之前的快照，保持对话历史</string>
+    <string name="checkpoint_skipped_single">已跳过 1 个文件：它在快照之后被其他会话或你改过，未回滚以保留这些改动\n%1$s</string>
+    <string name="checkpoint_skipped_multiple">已跳过 %1$d 个文件：它们在快照之后被改动，未回滚以保留这些改动\n%2$s</string>
+
+    <!-- Editor save conflict -->
+    <string name="editor_save_conflict_title">文件已被修改</string>
+    <string name="editor_save_conflict_message">该文件在你打开之后已被 AI 或其他程序修改。直接保存会覆盖对方的改动。</string>
+    <string name="editor_save_conflict_diff">- 磁盘当前内容\n+ 你的编辑\n\n%1$s</string>
+    <string name="editor_save_conflict_overwrite">覆盖磁盘</string>
+    <string name="editor_save_conflict_discard">放弃我的修改</string>
+    <string name="editor_save_conflict_cancel">取消</string>
+    <string name="editor_save_conflict_discarded">已放弃修改并重新载入磁盘内容</string>
 
     <!-- Chat Message Bubbles -->
     <string name="chat_copied">已复制</string>

@@ -2372,6 +2372,19 @@ class AIAgentViewModel @Inject constructor(
     private val _targetRewindMessageId = MutableStateFlow<String?>(null)
     val targetRewindMessageId: StateFlow<String?> = _targetRewindMessageId.asStateFlow()
 
+    /**
+     * 最近一次「回滚代码」因文件已被其他会话/用户改过而跳过的文件清单（逻辑路径）。
+     *
+     * 用一次性状态而不是事件流：UI 消费后调用 [clearRewindConflicts] 置空，避免重组时重复提示。
+     */
+    private val _rewindConflicts = MutableStateFlow<List<String>>(emptyList())
+    val rewindConflicts: StateFlow<List<String>> = _rewindConflicts.asStateFlow()
+
+    /** UI 已展示过冲突提示，清空以免重复弹。 */
+    fun clearRewindConflicts() {
+        _rewindConflicts.value = emptyList()
+    }
+
     fun openRewindMenu(messageId: String) {
         _targetRewindMessageId.value = messageId
     }
@@ -2414,7 +2427,8 @@ class AIAgentViewModel @Inject constructor(
         when (option) {
             RewindOption.RESTORE_CODE_AND_CONVERSATION -> {
                 if (checkpoint != null) {
-                    checkpointManager.restoreCodeToCheckpoint(sessionId, checkpoint.id)
+                    val result = checkpointManager.restoreCodeToCheckpoint(sessionId, checkpoint.id)
+                    _rewindConflicts.value = result.skipped
                 }
                 messagePersistenceUseCase.rewindConversation(sessionId, targetMsgEntity.timestamp)
                 withContext(Dispatchers.Main) { onFillPrompt(targetMsgEntity.content, attachments) }
@@ -2425,7 +2439,8 @@ class AIAgentViewModel @Inject constructor(
             }
             RewindOption.RESTORE_CODE -> {
                 if (checkpoint != null) {
-                    checkpointManager.restoreCodeToCheckpoint(sessionId, checkpoint.id)
+                    val result = checkpointManager.restoreCodeToCheckpoint(sessionId, checkpoint.id)
+                    _rewindConflicts.value = result.skipped
                 }
             }
         }

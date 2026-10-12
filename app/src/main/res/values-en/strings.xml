@@ -639,6 +639,17 @@
     <string name="checkpoint_restore_conversation_desc">Keep current code, truncate conversation to this point</string>
     <string name="checkpoint_restore_code">Restore code only</string>
     <string name="checkpoint_restore_code_desc">Revert code to snapshot before this point, keep conversation</string>
+    <string name="checkpoint_skipped_single">Skipped 1 file: it changed after the snapshot, so it was left alone to keep those edits\n%1$s</string>
+    <string name="checkpoint_skipped_multiple">Skipped %1$d files: they changed after the snapshot, so they were left alone to keep those edits\n%2$s</string>
+
+    <!-- Editor save conflict -->
+    <string name="editor_save_conflict_title">File changed on disk</string>
+    <string name="editor_save_conflict_message">This file was modified by the AI or another program after you opened it. Saving now would overwrite those changes.</string>
+    <string name="editor_save_conflict_diff">- Current on disk\n+ Your edits\n\n%1$s</string>
+    <string name="editor_save_conflict_overwrite">Overwrite disk</string>
+    <string name="editor_save_conflict_discard">Discard my edits</string>
+    <string name="editor_save_conflict_cancel">Cancel</string>
+    <string name="editor_save_conflict_discarded">Edits discarded; reloaded from disk</string>
 
     <!-- Chat Message Bubbles -->
     <string name="chat_copied">Copied</string>

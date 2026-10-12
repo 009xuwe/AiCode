@@ -180,6 +180,12 @@ private const val TURN_HEADER_CONTENT_TYPE = "turn-header"
 /** 整轮展开时，被抽为独立过程项的「轮末助手思考」的 contentType。 */
 private const val REASONING_CONTENT_TYPE = "reasoning"
 
+/**
+ * 回滚冲突提示里最多列出几个文件路径。Toast 空间有限，超出部分折叠成「另有 N 个」，
+ * 完整清单仍可从日志查看。
+ */
+private const val MAX_REWIND_CONFLICT_LINES = 3
+
 /** 轮首用户消息 id → 整轮折叠的持久化 key（与 ViewModel.turnExpansionOverrides 同口径）。 */
 internal fun turnKeyOf(firstMessageId: String): String = "turn:$firstMessageId"
 
@@ -584,6 +590,7 @@ fun AIChatPanel(
     val currentTodoItems by viewModel.currentSessionTodoItems.collectAsStateWithLifecycle()
     val queuedRequests by viewModel.queuedRequests.collectAsStateWithLifecycle()
     val targetRewindMessageId by viewModel.targetRewindMessageId.collectAsStateWithLifecycle()
+    val rewindConflicts by viewModel.rewindConflicts.collectAsStateWithLifecycle()
     val providers = (settingsViewModel?.providers?.collectAsStateWithLifecycle()?.value ?: emptyList()).filter { it.isEnabled }
     val modelMetadata = settingsViewModel?.modelMetadata?.collectAsStateWithLifecycle()?.value.orEmpty()
     val sessionProviderModel by viewModel.currentSessionProviderModel.collectAsStateWithLifecycle()
@@ -661,6 +668,23 @@ fun AIChatPanel(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+
+    // 回滚代码时若有文件因「快照后被改过」被跳过，必须告知用户——静默跳过等于把数据丢失
+    // 换成了无声的失败。展示后立即清空状态，避免重组时重复弹。
+    LaunchedEffect(rewindConflicts) {
+        val skipped = rewindConflicts
+        if (skipped.isEmpty()) return@LaunchedEffect
+        val shown = skipped.take(MAX_REWIND_CONFLICT_LINES)
+        val more = skipped.size - shown.size
+        val listText = shown.joinToString("\n") + if (more > 0) "\n…另有 $more 个" else ""
+        val message = if (skipped.size == 1) {
+            context.getString(R.string.checkpoint_skipped_single, listText)
+        } else {
+            context.getString(R.string.checkpoint_skipped_multiple, skipped.size, listText)
+        }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        viewModel.clearRewindConflicts()
+    }
 
     val isBusy = agentState is AgentUIState.Loading || agentState is AgentUIState.Streaming
     // 拆块 + 工具分组：超长助手消息展开成多条有界 item（单条滚动轴、外观连续），
