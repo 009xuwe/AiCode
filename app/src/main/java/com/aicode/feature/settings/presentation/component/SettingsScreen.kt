@@ -263,6 +263,7 @@ fun SettingsScreen(
     val promptsAnnouncementText by viewModel.promptsAnnouncementText.collectAsStateWithLifecycle()
     val promptsAnnouncementOutdated by viewModel.promptsAnnouncementOutdated.collectAsStateWithLifecycle()
     val imageCatalog by viewModel.imageCatalog.collectAsStateWithLifecycle()
+    val imageVersions by viewModel.imageVersions.collectAsStateWithLifecycle()
     val imageDownload by viewModel.containerImageDownload.collectAsStateWithLifecycle()
     val containerReset by viewModel.containerReset.collectAsStateWithLifecycle()
     val imageSourceOptions by viewModel.imageSourceOptions.collectAsStateWithLifecycle()
@@ -1016,6 +1017,7 @@ fun SettingsScreen(
                 )
                 SettingsSection.ContainerDownloads -> ContainerImageDownloadSection(
                     catalog = imageCatalog,
+                    imageVersions = imageVersions,
                     state = imageDownload,
                     downloadedImages = downloadedImages,
                     sourceUnavailableIds = sourceUnavailableIds,
