@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,6 +67,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aicode.R
 import com.aicode.core.theme.Spacing
+import com.aicode.core.util.LineDiff
 import com.aicode.feature.editor.data.EditorSettings
 import com.aicode.feature.editor.domain.TextMateSetup
 import com.aicode.feature.editor.presentation.component.MarkdownPreviewWebView
@@ -138,6 +141,9 @@ fun CodeEditorScreen(
     val context = LocalContext.current
     val savedText = stringResource(R.string.editor_save_success)
     val saveFailedText = stringResource(R.string.editor_save_failed)
+    val conflictDiscardedText = stringResource(R.string.editor_save_conflict_discarded)
+    // 保存冲突：磁盘内容在编辑器打开之后被改过。非空时弹对话框让用户选，不自动覆盖也不自动丢弃。
+    var saveConflictDiskContent by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         viewModel.saveEvents.collect { result ->
             when (result) {
@@ -149,6 +155,11 @@ fun CodeEditorScreen(
                         pendingExit = false
                         onBack()
                     }
+                }
+                is SaveResult.Conflict -> {
+                    // 冲突时放弃"保存并退出"的意图：先让用户决定怎么处理这次冲突。
+                    pendingExit = false
+                    saveConflictDiskContent = result.diskContent
                 }
                 is SaveResult.Error -> {
                     pendingExit = false
@@ -347,6 +358,50 @@ fun CodeEditorScreen(
                     showUnsavedDialog = false
                     onBack()
                 }) { Text(stringResource(R.string.editor_dont_save)) }
+            }
+        )
+    }
+
+    saveConflictDiskContent?.let { diskContent ->
+        AlertDialog(
+            onDismissRequest = { saveConflictDiskContent = null },
+            title = { Text(stringResource(R.string.editor_save_conflict_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.editor_save_conflict_message))
+                    // 差异按「磁盘 → 你的编辑」方向渲染：`-` 是磁盘现有内容，`+` 是你的修改。
+                    val diff = remember(diskContent, pendingSaveText) {
+                        LineDiff.toUnified(diskContent, pendingSaveText)
+                    }
+                    Text(
+                        text = stringResource(R.string.editor_save_conflict_diff, diff),
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .padding(top = Spacing.sm)
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .verticalScroll(rememberScrollState())
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    saveConflictDiskContent = null
+                    viewModel.saveForce(pendingSaveText)
+                }) { Text(stringResource(R.string.editor_save_conflict_overwrite)) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { saveConflictDiskContent = null }) {
+                        Text(stringResource(R.string.editor_save_conflict_cancel))
+                    }
+                    TextButton(onClick = {
+                        saveConflictDiskContent = null
+                        viewModel.reloadFromDisk()
+                        Toast.makeText(context, conflictDiscardedText, Toast.LENGTH_SHORT).show()
+                    }) { Text(stringResource(R.string.editor_save_conflict_discard)) }
+                }
             }
         )
     }
