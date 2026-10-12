@@ -7,6 +7,7 @@ import com.aicode.feature.agent.domain.tool.ToolRegistry
 import com.aicode.feature.settings.data.repository.ContainerSettingsRepository
 import com.aicode.feature.settings.data.repository.ExecutionMode
 import com.aicode.feature.workspace.data.repository.WorkspaceRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -164,6 +165,9 @@ class McpManager @Inject constructor(
             }
             FileLogger.i(TAG, "[${cfg.name}] 连接成功，注册 ${enabledTools.size}/${tools.size} 个工具（${System.currentTimeMillis() - t0}ms）")
             McpServerStatus(cfg.name, McpServerStatus.State.CONNECTED, toolCount = enabledTools.size)
+        } catch (e: CancellationException) {
+            // reload 被新的配置/工作区变更取消是正常流程，不当连接失败上报。
+            throw e
         } catch (e: Exception) {
             FileLogger.e(TAG, "[${cfg.name}] 连接失败（${System.currentTimeMillis() - t0}ms）", e)
             McpServerStatus(cfg.name, McpServerStatus.State.FAILED, error = e.message)
