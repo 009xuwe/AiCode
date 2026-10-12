@@ -603,7 +603,10 @@
     <string name="chat_status_running_command">Running command</string>
     <string name="chat_status_editing_file">Editing file</string>
     <string name="chat_status_reading_file">Reading file</string>
+    <string name="chat_status_viewing_image">Viewing image</string>
     <string name="chat_status_searching_web">Searching the web</string>
+    <string name="chat_status_browsing_web">Controlling browser</string>
+    <string name="chat_status_asking_user">Asking user</string>
     <string name="chat_status_generating_image">Generating image</string>
     <string name="chat_status_updating_todo">Updating to-dos</string>
     <string name="chat_status_starting_subagent">Starting sub-agent</string>

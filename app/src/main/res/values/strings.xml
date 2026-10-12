@@ -603,7 +603,10 @@
     <string name="chat_status_running_command">正在执行命令</string>
     <string name="chat_status_editing_file">正在编辑文件</string>
     <string name="chat_status_reading_file">正在读取文件</string>
+    <string name="chat_status_viewing_image">正在查看图片</string>
     <string name="chat_status_searching_web">正在联网搜索</string>
+    <string name="chat_status_browsing_web">正在操作浏览器</string>
+    <string name="chat_status_asking_user">正在询问用户</string>
     <string name="chat_status_generating_image">正在生成图片</string>
     <string name="chat_status_updating_todo">正在整理待办</string>
     <string name="chat_status_starting_subagent">正在启动子代理</string>
