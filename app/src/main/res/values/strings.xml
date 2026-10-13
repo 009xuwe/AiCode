@@ -617,6 +617,7 @@
     <string name="chat_tool_calls_count">%1$d 次工具调用</string>
     <string name="chat_turn_running">执行中</string>
     <string name="chat_turn_completed">已完成 %1$s</string>
+    <string name="chat_turn_completed_plain">已完成</string>
     <string name="chat_context_usage">上下文已用 %1$d%%</string>
     <string name="chat_bg_command_done">后台命令已完成</string>
     <string name="chat_bg_commands_done">%1$d 个后台任务已完成</string>

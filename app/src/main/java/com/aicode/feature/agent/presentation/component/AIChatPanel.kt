@@ -184,6 +184,13 @@ private const val REASONING_CONTENT_TYPE = "reasoning"
 internal fun turnKeyOf(firstMessageId: String): String = "turn:$firstMessageId"
 
 /**
+ * 被窗口截断、找不到轮首的那一截过程（见 [buildChatItems]）的折叠头 key。
+ *
+ * 取块尾消息 id 而非块首：窗口继续向前补加载时新消息插在块首，块尾不变、key 保持稳定。
+ */
+internal fun leadingHeadKey(lastMessage: AgentUIMessage): String = "turn:head:${lastMessage.id}"
+
+/**
  * 整轮任务折叠头 item 的渲染状态。非空即表示这是一条「执行中 / 已完成」头行。
  *
  * [endMessageId] 是轮末助手消息 id，据此查本轮耗时（见 [computeTaskDurations]，口径一致）。
@@ -277,6 +284,10 @@ private fun messageRenderItems(message: AgentUIMessage): List<ChatRenderItem> {
  * 随折叠头一起平滑展开；压缩摘要/后台通知/带附件工具等常显项不参与折叠。
  * 结果 = 轮内最后一条有可见正文的普通助手消息（其思考抽为过程项）。
  *
+ * 轮首之前剩下的散消息同样按「一轮过程」处理：消息按条数截断加载，窗口边界常切在某一轮中间，
+ * 这一段缺的是轮首用户消息而不是折叠头——原样常显会在历史最前面摊开一整轮过程。它们补一个不带
+ * 耗时的折叠头（key 见 [leadingHeadKey]），默认收起。
+ *
  * 轮头展开态：没手动记录时「末轮且 agent 忙」默认展开、其余默认收起（[activeTurnKey]）；
  * 一旦用户在 [turnOverrides] 里点过，就以其选择为准，任务完成自动收起不会覆盖它。
  *
@@ -290,8 +301,28 @@ internal fun buildChatItems(
 ): List<ChatRenderItem> {
     val items = ArrayList<ChatRenderItem>(messages.size)
     val (leading, turns) = splitChatTurns(messages)
-    // 轮首之前的散消息（会话开头就出现的助手/工具输出，罕见）不折叠，原样常显。
-    leading.forEach { items += messageRenderItems(it) }
+    if (leading.isNotEmpty()) {
+        val headKey = leadingHeadKey(leading.last())
+        // 这一截通常结尾就是上一轮的最终回复（窗口从某一轮中间切开）：它照旧常显，
+        // 只有它的思考与更早的过程步骤折进折叠头，与完整轮次的呈现一致。
+        val resultId = leading.last().takeIf { it.isResultCandidate() }?.id
+        val process = buildTurnProcessItems(leading, resultId, groupOverrides)
+        if (process.isNotEmpty()) {
+            items += ChatRenderItem(
+                message = leading.last(),
+                key = "$headKey#header",
+                contentType = TURN_HEADER_CONTENT_TYPE,
+                turnHeader = TurnHeaderState(
+                    key = headKey,
+                    endMessageId = null,
+                    running = false,
+                    expanded = turnOverrides[headKey] ?: false,
+                ),
+                turnProcess = process,
+            )
+        }
+        items += buildTurnPersistentItems(leading, resultId)
+    }
     for (turn in turns) {
         items += messageRenderItems(turn.userMessage)
         val endAssistant = turn.messages.lastOrNull {

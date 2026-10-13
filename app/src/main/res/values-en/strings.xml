@@ -617,6 +617,7 @@
     <string name="chat_tool_calls_count">%1$d tool calls</string>
     <string name="chat_turn_running">Running</string>
     <string name="chat_turn_completed">Completed in %1$s</string>
+    <string name="chat_turn_completed_plain">Completed</string>
     <string name="chat_context_usage">Context %1$d%% used</string>
     <string name="chat_bg_command_done">Background command completed</string>
     <string name="chat_bg_commands_done">%1$d background tasks completed</string>
