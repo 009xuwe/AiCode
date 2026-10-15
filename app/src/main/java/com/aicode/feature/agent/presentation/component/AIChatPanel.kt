@@ -190,6 +190,13 @@ private const val MAX_REWIND_CONFLICT_LINES = 3
 internal fun turnKeyOf(firstMessageId: String): String = "turn:$firstMessageId"
 
 /**
+ * 被窗口截断、找不到轮首的那一截过程（见 [buildChatItems]）的折叠头 key。
+ *
+ * 取块尾消息 id 而非块首：窗口继续向前补加载时新消息插在块首，块尾不变、key 保持稳定。
+ */
+internal fun leadingHeadKey(lastMessage: AgentUIMessage): String = "turn:head:${lastMessage.id}"
+
+/**
  * 整轮任务折叠头 item 的渲染状态。非空即表示这是一条「执行中 / 已完成」头行。
  *
  * [endMessageId] 是轮末助手消息 id，据此查本轮耗时（见 [computeTaskDurations]，口径一致）。
@@ -283,6 +290,10 @@ private fun messageRenderItems(message: AgentUIMessage): List<ChatRenderItem> {
  * 随折叠头一起平滑展开；压缩摘要/后台通知/带附件工具等常显项不参与折叠。
  * 结果 = 轮内最后一条有可见正文的普通助手消息（其思考抽为过程项）。
  *
+ * 轮首之前剩下的散消息同样按「一轮过程」处理：消息按条数截断加载，窗口边界常切在某一轮中间，
+ * 这一段缺的是轮首用户消息而不是折叠头——原样常显会在历史最前面摊开一整轮过程。它们补一个不带
+ * 耗时的折叠头（key 见 [leadingHeadKey]），默认收起。
+ *
  * 轮头展开态：没手动记录时「末轮且 agent 忙」默认展开、其余默认收起（[activeTurnKey]）；
  * 一旦用户在 [turnOverrides] 里点过，就以其选择为准，任务完成自动收起不会覆盖它。
  *
@@ -296,8 +307,28 @@ internal fun buildChatItems(
 ): List<ChatRenderItem> {
     val items = ArrayList<ChatRenderItem>(messages.size)
     val (leading, turns) = splitChatTurns(messages)
-    // 轮首之前的散消息（会话开头就出现的助手/工具输出，罕见）不折叠，原样常显。
-    leading.forEach { items += messageRenderItems(it) }
+    if (leading.isNotEmpty()) {
+        val headKey = leadingHeadKey(leading.last())
+        // 这一截通常结尾就是上一轮的最终回复（窗口从某一轮中间切开）：它照旧常显，
+        // 只有它的思考与更早的过程步骤折进折叠头，与完整轮次的呈现一致。
+        val resultId = leading.last().takeIf { it.isResultCandidate() }?.id
+        val process = buildTurnProcessItems(leading, resultId, groupOverrides)
+        if (process.isNotEmpty()) {
+            items += ChatRenderItem(
+                message = leading.last(),
+                key = "$headKey#header",
+                contentType = TURN_HEADER_CONTENT_TYPE,
+                turnHeader = TurnHeaderState(
+                    key = headKey,
+                    endMessageId = null,
+                    running = false,
+                    expanded = turnOverrides[headKey] ?: false,
+                ),
+                turnProcess = process,
+            )
+        }
+        items += buildTurnPersistentItems(leading, resultId)
+    }
     for (turn in turns) {
         items += messageRenderItems(turn.userMessage)
         val endAssistant = turn.messages.lastOrNull {
@@ -1007,17 +1038,15 @@ fun AIChatPanel(
         }
     }
 
-    // isAssistantSettled 依赖「末尾恰好是 ASSISTANT 且前缀吻合」，但至少三类路径走不到它：
-    // 用户停止后内容未落库（末尾还是 USER）、整轮只有思考没有正文（workflow 不发 AssistantText，
-    // 什么都不落库）、以及带工具调用的回合里 TOOL 消息先落库把末尾顶掉。此时流式状态已被
-    // ViewModel 清空，retained 里只剩旧文：整轮结束（isBusy 翻 false）或末尾已是本轮工具
-    // 结果（说明正文早已落库）时必须兜底清空，否则旧思考/正文会一直挂在尾巴上，
-    // 计时器还在走表（「正在思考（耗时 N 秒）」），下一轮又像重复出现。
-    LaunchedEffect(isBusy, lastMsg?.role) {
-        if (!isBusy || lastMsg?.role == MessageRole.TOOL) {
-            retainedStreamingText = null
-            retainedStreamingReasoning = null
-        }
+    // retained 快照只在「流式已结束、落库消息尚未出现」的短窗口里兜底，撑住底部气泡不闪空；
+    // 末尾消息一旦出现或更替（有新消息落库），或整轮结束，兜底使命即结束。
+    // 不能只按 lastMsg.role 判定：多步工具回合里末尾在 TOOL→TOOL 之间来回，role 不变则本 effect
+    // 不重启；而助手消息落库又常与紧随其后的工具消息被合并派发，UI 观察不到「助手消息成为末尾」
+    // 那一帧，isAssistantSettled 的前缀校验恒不成立——两条清除路径同时失效，旧思考/正文就会一直
+    // 挂在尾巴上、新内容反而出现在它上方。改按末尾消息 id 判定，任何新消息落库都会触发清空。
+    LaunchedEffect(isBusy, lastMsg?.id) {
+        retainedStreamingText = null
+        retainedStreamingReasoning = null
     }
 
     val displayStreamingText = if (isAssistantSettled) null else (streamingText ?: retainedStreamingText)
@@ -1706,7 +1735,7 @@ fun AIChatPanel(
                         settingsViewModel?.refreshProviderDashboard(it, context = context, force = true)
                     }
                 },
-                tokenEstimated = contextUsages[currentSessionId]?.estimated == true,
+                tokenEstimated = contextUsages[currentSessionId]?.estimated ?: (sessionLastInputTokens <= 0 && currentSessionId != null),
                 tokenProgress = run {
                     val contextLimit = activeModelMetadata?.let {
                         com.aicode.feature.settings.domain.model.ModelContextPolicy.effectiveInputBudget(it)

@@ -153,8 +153,14 @@ class ContextCompactor @Inject constructor(
                 AgentMessage.AssistantMessage(id = summaryId, content = summary)
             ) + tail
             val compactedTokens = CompactionText.estimateRequest(systemPrompt, tools, compacted)
-            check(compactedTokens < estimatedTokens && compactedTokens <= inputBudget) {
-                "Summary and retained history do not fit the main model input budget or do not reduce it"
+            // 摘要由模型生成，长度不受控：短历史里摘要可能比被替换的原消息更长，压缩没有收益。
+            // 这不是失败，只是不该落库，静默保留原历史。
+            if (compactedTokens >= estimatedTokens) {
+                FileLogger.i(TAG, "压缩未缩减 token（$estimatedTokens → $compactedTokens），保留原历史")
+                return unchanged
+            }
+            check(compactedTokens <= inputBudget) {
+                "Summary and retained history do not fit the main model input budget"
             }
             if (sessionId != null) {
                 agentMessageDao.commitCompaction(
@@ -373,7 +379,13 @@ internal object CompactionText {
                         if (tokens(label + remaining.substring(0, mid) + "\n[unit continues]\n") <= budget) low = mid else high = mid - 1
                     }
                     if (low > 0 && low < remaining.length && remaining[low - 1].isHighSurrogate() && remaining[low].isLowSurrogate()) low--
-                    check(low > 0) { "Summary budget cannot hold a history fragment" }
+                    check(low > 0) {
+                        if (budget <= 0) {
+                            "Summary instructions and previous summary already fill the whole budget"
+                        } else {
+                            "Summary budget ($budget tokens) is too small to hold even the first fragment of the current history unit"
+                        }
+                    }
                     result.append(label).append(remaining.substring(0, low)).append("\n[unit continues]\n")
                     offset += low
                     break

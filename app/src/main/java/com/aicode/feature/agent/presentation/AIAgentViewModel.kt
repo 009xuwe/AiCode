@@ -905,6 +905,8 @@ class AIAgentViewModel @Inject constructor(
     }
 
     private val _compactingSessions = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    /** 本轮压缩是否已失败：CompactionFinished 在 finally 里无条件发出，靠它区分成功/失败。 */
+    private val _compactionFailedSessions = MutableStateFlow<Set<String>>(emptySet())
     private val _contextUsages = MutableStateFlow<Map<String, AgentEvent.ContextUsage>>(emptyMap())
     val contextUsages: StateFlow<Map<String, AgentEvent.ContextUsage>> = _contextUsages.asStateFlow()
 
@@ -1805,16 +1807,23 @@ class AIAgentViewModel @Inject constructor(
                         setStreamingText(sessionId, null)
                         setStreamingReasoning(sessionId, null)
                         setCompacting(sessionId, true)
+                        _compactionFailedSessions.value = _compactionFailedSessions.value - sessionId
                     }
                     AgentEvent.CompactionFinished -> {
                         setCompacting(sessionId, false)
-                        _contextUsages.value = _contextUsages.value - sessionId
+                        // CompactionFinished 在 finally 里无条件发出（失败也会发），
+                        // 只有真正成功才清掉估算事件：压缩成功后历史已替换，旧估算继续挂着会让外圈高估；
+                        // 失败时保留估算，避免 lastInputTokens 为 0 的会话外圈直接熄掉、误报「已腾出」。
+                        val failed = sessionId in _compactionFailedSessions.value
+                        if (!failed) _contextUsages.value = _contextUsages.value - sessionId
+                        _compactionFailedSessions.value = _compactionFailedSessions.value - sessionId
                     }
                     is AgentEvent.ContextUsage -> {
                         _contextUsages.value = _contextUsages.value + (sessionId to event)
                     }
                     is AgentEvent.CompactionFailed -> {
                         setCompacting(sessionId, false)
+                        _compactionFailedSessions.value = _compactionFailedSessions.value + sessionId
                         // 落库为无配对的 TOOL 消息：UI 渲染失败卡片，buildHistory 回放自动丢弃，不进模型上下文。
                         messagePersistenceUseCase.persist(
                             sessionId,
@@ -1870,6 +1879,10 @@ class AIAgentViewModel @Inject constructor(
                                     chatSessionDao.updateLastInputTokens(sessionId, event.inputTokens)
                                 }
                             }
+                        } else {
+                            // 上游没给 token 时也透出一次 0 事件，驱动面板用兜底路径刷新，
+                            // 否则最近 input/output 一直停在上一轮真实值，上游切换无感。
+                            _llmCallEvents.tryEmit(LlmCallEvent(sessionId, 0, 0, 0))
                         }
                         event.persisted?.complete(Unit)
                     }
@@ -2191,18 +2204,25 @@ class AIAgentViewModel @Inject constructor(
 
     // region 会话管理
 
-    /** 新建会话；若当前会话还是空的则直接复用，避免堆积空会话。 */
+    /** 新建会话；工作区里已有空会话时直接切过去复用（当前会话为空则优先），避免堆积空会话。 */
     fun newSession() = viewModelScope.launch {
-        if (_currentWorkspace.value.isBlank()) return@launch
+        val ws = _currentWorkspace.value
+        if (ws.isBlank()) return@launch
         val curId = _currentSessionId.value
-        if (curId != null && sessionUseCase.isSessionEmpty(curId)) {
-            setAgentState(curId, AgentUIState.Idle)
+        val reusableId = if (curId != null && sessionUseCase.isSessionEmpty(curId)) {
+            curId
+        } else {
+            sessionUseCase.getEmptySessionOfWorkspace(ws)?.id
+        }
+        if (reusableId != null) {
+            setAgentState(reusableId, AgentUIState.Idle)
+            _currentSessionId.value = reusableId
             return@launch
         }
         // 新会话时异步重连未连接的 MCP server，让 manageMcp 新增的配置真正生效；
         // 不阻塞会话创建——MCP 环境未就绪/超时时不能卡住「新建会话」。
         mcpManager.reconnectUnconnectedAsync()
-        val sid = createAndUpsertSession(_currentWorkspace.value)
+        val sid = createAndUpsertSession(ws)
         _currentSessionId.value = sid
     }
 
@@ -2549,7 +2569,9 @@ class AIAgentViewModel @Inject constructor(
                         is AgentEvent.CompactionStarted -> setCompacting(sid, true)
                         AgentEvent.CompactionFinished -> {
                             setCompacting(sid, false)
-                            _contextUsages.value = _contextUsages.value - sid
+                            // CompactionFinished 在 finally 里无条件发出（失败也会发）：
+                            // 只有真正成功才清掉估算事件，失败时保留，避免外圈熄掉误报「已腾出」。
+                            if (!failed) _contextUsages.value = _contextUsages.value - sid
                         }
                         is AgentEvent.CompactionFailed -> {
                             failed = true
@@ -2749,11 +2771,13 @@ class AIAgentViewModel @Inject constructor(
         setStreamingReasoning(sessionId, null)
         setCompacting(sessionId, false)
         _contextUsages.value = _contextUsages.value - sessionId
+        _compactionFailedSessions.value = _compactionFailedSessions.value - sessionId
         setRetryState(sessionId, null)
         checkpointManager.setActiveCheckpointId(sessionId, null)
 
         val checkpoint = checkpointDao.getCheckpointBySessionAndMessage(sessionId, messageId)
         val targetMsgEntity = agentMessageDao.getMessageById(messageId) ?: return@launch
+        if (targetMsgEntity.isCompactionMarker || targetMsgEntity.isContextSummary) return@launch
         val attachments = targetMsgEntity.toUIMessage().attachments
 
         when (option) {
