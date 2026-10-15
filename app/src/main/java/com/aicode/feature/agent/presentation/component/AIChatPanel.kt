@@ -619,6 +619,7 @@ fun AIChatPanel(
     val currentWorkspace = workspaceViewModel?.current?.collectAsStateWithLifecycle()?.value
     val projectRoot = currentWorkspace?.path ?: ""
     val currentMode by viewModel.currentSessionMode.collectAsStateWithLifecycle()
+    val currentGoal by viewModel.currentSessionGoal.collectAsStateWithLifecycle()
     val slashCommands by viewModel.slashCommands.collectAsStateWithLifecycle()
     val fileMentionState by viewModel.fileMentionState.collectAsStateWithLifecycle()
 
@@ -1661,6 +1662,9 @@ fun AIChatPanel(
                 },
                 currentMode = currentMode,
                 onToggleMode = { viewModel.setSessionMode(it) },
+                currentGoal = currentGoal,
+                onSetGoalPaused = { viewModel.setGoalPaused(it) },
+                onClearGoal = { viewModel.clearGoal() },
                 reasoningEffort = reasoningEffort,
                 onReasoningEffortChange = { viewModel.setSessionReasoningEffort(it) },
                 pendingAttachments = pendingAttachments,

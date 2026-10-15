@@ -10,6 +10,7 @@ import com.aicode.feature.agent.domain.container.ContainerProfile
 import com.aicode.feature.agent.domain.container.versionFromDownloadFileName
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -87,6 +88,16 @@ class ContainerSettingsRepository @Inject constructor(
         prefs[CUSTOM_PROFILES_KEY]?.let { raw ->
             runCatching { json.decodeFromString(profileSerializer, raw) }.getOrNull()
         } ?: emptyList()
+    }
+
+    /**
+     * 当前选中的 profile。id 在列表中已不存在（被删除）时回退列表首项，列表为空回退内置 Alpine，
+     * 保证调用方总能拿到一个可用 profile。
+     */
+    val activeProfileFlow: Flow<ContainerProfile> = combine(activeProfileIdFlow, customProfilesFlow) { id, profiles ->
+        profiles.firstOrNull { it.id == id }
+            ?: profiles.firstOrNull()
+            ?: ContainerProfile.BUILTIN_ALPINE
     }
 
     suspend fun setActiveProfile(id: String) {

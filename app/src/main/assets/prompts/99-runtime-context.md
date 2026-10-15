@@ -28,3 +28,5 @@
 - 运行环境: {{AICODE_ENVIRONMENT}}
 
 [System] 当前本地时间: {{AICODE_DATE}}
+
+{{AICODE_GOAL}}

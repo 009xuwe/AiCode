@@ -46,6 +46,15 @@
     <string name="settings_sendfile_max_size_desc">单个文件大小上限，超过则整批发送失败</string>
     <string name="settings_mb_value">%1$d MB</string>
     <string name="settings_sendfile_max_size_input_hint">单位 MB，填大于 0 的整数</string>
+    <string name="settings_general_goal">目标（goal）</string>
+    <string name="settings_goal_max_turns">最大续跑轮数</string>
+    <string name="settings_goal_max_turns_desc">自主循环最多续跑多少轮，达到即停止</string>
+    <string name="settings_turns_value">%1$d 轮</string>
+    <string name="settings_goal_max_turns_input_hint">填大于 0 的整数轮数</string>
+    <string name="settings_goal_max_tokens">token 预算</string>
+    <string name="settings_goal_max_tokens_desc">自主循环累计消耗的输入+输出 token 上限</string>
+    <string name="settings_tokens_value">%1$d</string>
+    <string name="settings_goal_max_tokens_input_hint">填不小于 1000 的整数</string>
     <string name="settings_vision_model">识图模型</string>
     <string name="settings_compaction_model">压缩模型</string>
     <string name="settings_title_model">标题总结模型</string>
@@ -235,8 +244,22 @@
     <string name="settings_keepalive_subtitle">显示前台通知，防止后台被杀</string>
     <string name="settings_screen_on_title">屏幕常亮</string>
     <string name="settings_screen_on_subtitle">App 在前台时不自动息屏</string>
+    <string name="settings_network_guide_title">后台断网排查</string>
+    <string name="settings_network_guide_subtitle">切到后台后断网？按这里逐项检查</string>
+    <string name="settings_network_guide_intro">若切到后台后出现「网络连接断开」，请按以下顺序设置：</string>
+    <string name="settings_network_guide_step_keepalive">1. 打开上方「后台运行保活」，并保留通知栏的常驻通知</string>
+    <string name="settings_network_guide_step_lock">2. 在多任务界面给本应用加锁，不要直接划掉</string>
+    <string name="settings_network_guide_step_battery">3. 在系统设置里把本应用的省电策略设为「无限制 / 不优化」，并允许自启动</string>
+    <string name="settings_network_guide_brand_huawei">华为 / 荣耀：应用启动管理 → 手动管理 → 允许自启动、关联启动、后台活动</string>
+    <string name="settings_network_guide_brand_xiaomi">小米 / Redmi：省电与电池 → 应用智能省电 → 无限制</string>
+    <string name="settings_network_guide_brand_oppo">OPPO / 一加 / realme：应用管理 → 电池使用 → 允许后台活动；电池 → 更多设置 → 优化电池使用 → 不优化</string>
+    <string name="settings_network_guide_brand_vivo">vivo / iQOO：电池 → 后台耗电管理 → 允许后台高耗电；应用与权限 → 自启动</string>
+    <string name="settings_network_guide_brand_samsung">三星：电池和设备维护 → 电池 → 后台使用限制 → 加入「从不休眠」；应用 → 电池 → 不受限制</string>
+    <string name="settings_network_guide_more">更多机型与详细说明见官网文档</string>
     <string name="settings_agent_sound_title">Agent 完成通知</string>
     <string name="settings_agent_sound_subtitle">退到后台时 Agent 完成弹出通知</string>
+    <string name="settings_live_notification_title">实时通知</string>
+    <string name="settings_live_notification_subtitle">AI 在后台工作时展示实时进度通知</string>
     <string name="agent_complete_notification_title">任务完成</string>
     <string name="agent_complete_notification_body">点击返回查看</string>
     <string name="agent_complete_notification_background_body">后台任务「%1$s」已完成</string>
@@ -248,6 +271,9 @@
     <string name="notification_keepalive_enabled">后台保活已开启</string>
     <string name="notification_channel_agent_complete">Agent 完成通知</string>
     <string name="notification_channel_agent_complete_desc">Agent 在后台完成任务时弹出的通知</string>
+    <string name="notification_channel_agent_live">AI 实时进度</string>
+    <string name="notification_channel_agent_live_desc">AI 在后台工作时展示当前进度的通知</string>
+    <string name="notification_agent_live_title_multi">%1$d 个任务进行中</string>
     <string name="settings_app_permissions">软件权限</string>
     <string name="settings_permission_apk_install">安装未知应用</string>
     <string name="settings_permission_apk_install_desc">允许安装 APK 安装包</string>
@@ -446,6 +472,13 @@
     <string name="about_update_verify_signature">安装包签名与当前应用不一致，请改用浏览器下载</string>
     <string name="about_update_verify_not_newer">安装包版本不高于当前版本</string>
     <string name="about_update_install_failed">没有可用的安装程序</string>
+
+    <!-- Disclaimer -->
+    <string name="about_disclaimer">免责声明</string>
+    <string name="disclaimer_title">免责声明</string>
+    <string name="disclaimer_body">本软件（AiCode）为开源软件，按「现状」提供，仅供学习、研究与合法的软件开发用途。\n\n使用本软件时，你应遵守所在国家或地区的法律法规以及所使用服务的相关条款。严禁将本软件用于任何违法或侵权用途，包括但不限于：未经授权入侵、破解、逆向工程他人软件或系统，绕过技术保护措施，窃取或泄露他人数据，传播恶意代码，以及其它侵害他人合法权益的行为。\n\n你应自行承担使用本软件的全部风险与责任。对于你因使用或无法使用本软件而产生的任何直接或间接损失，以及你利用本软件实施的任何行为及其后果，作者与贡献者均不承担任何责任。\n\n若你不同意本声明，请立即停止使用并卸载本软件。</string>
+    <string name="disclaimer_accept">我已阅读并同意</string>
+    <string name="disclaimer_decline">不同意</string>
 
     <!-- Ask User Question -->
     <string name="ask_confirm_title">AI 需要你的确认</string>
@@ -705,10 +738,20 @@
     <string name="chat_compressing_context">正在压缩上下文</string>
     <string name="chat_retrying">正在重试 %1$s/%2$s</string>
     <string name="chat_key_switched">已切换到第 %1$d/%2$d 个 Key</string>
+    <string name="chat_goal_label">目标·%1$s</string>
+    <string name="chat_goal_status_active">进行中</string>
+    <string name="chat_goal_status_paused">已暂停</string>
+    <string name="chat_goal_status_completed">已完成</string>
+    <string name="chat_goal_status_blocked">受阻</string>
+    <string name="chat_goal_status_exhausted">预算耗尽</string>
+    <string name="chat_goal_pause">暂停目标</string>
+    <string name="chat_goal_resume">恢复目标</string>
+    <string name="chat_goal_clear">清除目标</string>
     <string name="chat_error_title">请求失败</string>
     <string name="slash_command_compress_desc">手动触发当前会话的上下文压缩</string>
     <string name="slash_command_init_desc">分析当前工作区代码库，生成或改进项目规则 AGENTS.md</string>
     <string name="slash_command_usage_desc">查看今日与累计的调用次数、token 用量与预估费用</string>
+    <string name="slash_command_goal_desc">设定会话持续目标，AI 自主循环推进至达成或预算耗尽</string>
     <string name="retry_error_rate_limit">速率限制</string>
     <string name="retry_error_server_overloaded">服务器负载过高</string>
     <string name="retry_error_server">服务端错误</string>
@@ -935,9 +978,10 @@
     <string name="git_files_changed">%1$s 个文件改动</string>
     <string name="git_no_files_changed">该提交无文件改动</string>
     <string name="git_loading_files">正在加载改动文件…</string>
-    <string name="git_not_a_repo">当前工作区不是 Git 仓库</string>
-    <string name="git_init_desc">初始化后会在此创建 .git，之后可暂存、提交、关联远程。</string>
-    <string name="git_init_repo">初始化 Git 仓库</string>
+    <string name="git_not_a_repo">当前工作区还不是 Git 仓库</string>
+    <string name="git_init_desc_primary">可在此初始化新仓库，开始版本管理</string>
+    <string name="git_init_desc_secondary">若子目录已有 Git 仓库，也可直接选择使用</string>
+    <string name="git_init_repo">初始化新仓库</string>
     <string name="git_clone_repo">克隆远程仓库</string>
     <string name="git_clone_dialog_title">克隆 Git 仓库</string>
     <string name="git_clone_desc">将远程仓库克隆到当前工作区根目录（工作区需为空）。若为私有仓库，可先在右上角凭据管理中配置访问凭据。</string>
@@ -958,6 +1002,11 @@
     <string name="git_unstage_all_confirm">将取消所有文件的暂存，但不会删除文件内容。确定继续吗？</string>
     <string name="git_pull_dirty_confirm">当前工作区有未提交改动，拉取可能导致冲突。建议先提交或暂存。仍要继续拉取吗？</string>
     <string name="git_pull_continue">继续拉取</string>
+    <string name="git_switch_repo">切换仓库</string>
+    <string name="git_pick_existing_repo">选择已有仓库</string>
+    <string name="git_repo_selector_title">选择仓库</string>
+    <string name="git_repo_not_repo">非仓库</string>
+    <string name="git_pick_repo_empty">当前工作区没有可选的目录</string>
     <string name="git_push_master_confirm_title">分支命名建议</string>
     <string name="git_push_master_confirm_desc">当前本地分支为 master，GitHub 与 GitLab 推荐使用 main 作为默认主分支。是否将本地分支重命名为 main 后再推送？</string>
     <string name="git_push_rename_to_main">重命名为 main 并推送</string>
@@ -974,6 +1023,8 @@
     <string name="git_toast_action_failed">%1$s失败：%2$s</string>
     <string name="git_toast_checkout_success">已切换到 %1$s</string>
     <string name="git_toast_checkout_failed">切换失败：%1$s</string>
+    <string name="git_toast_not_repo">该目录不是 Git 仓库</string>
+    <string name="git_toast_switch_repo_failed">切换仓库失败：%1$s</string>
     <string name="git_toast_diff_failed">加载差异失败</string>
     <string name="git_toast_path_copied">已复制路径</string>
     <string name="git_action_stage_all">全部暂存</string>

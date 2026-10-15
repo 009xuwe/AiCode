@@ -5,6 +5,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.aicode.feature.agent.domain.model.AgentMode
 import com.aicode.feature.agent.domain.model.ChatSession
+import com.aicode.feature.agent.domain.model.GoalStatus
 import com.aicode.feature.agent.domain.model.ReasoningEffort
 
 @Entity(
@@ -20,6 +21,13 @@ data class ChatSessionEntity(
     val mode: String = AgentMode.BUILD.name,
     /** 进入 PLAN 前的模式（如 AUTO）；退出 PLAN 时恢复，null 视为 BUILD。 */
     val modeBeforePlan: String? = null,
+    /** 会话级持续目标文本；null 表示未设定目标。 */
+    val goal: String? = null,
+    /** goal 生命周期状态；[goal] 为 null 时无意义。 */
+    val goalStatus: String? = null,
+    val goalTurnCount: Int = 0,
+    val goalStartInputTokens: Int = 0,
+    val goalStartOutputTokens: Int = 0,
     val reasoningEffort: String = ReasoningEffort.MEDIUM.name,
     val providerId: String? = null,
     val model: String? = null,
@@ -40,6 +48,11 @@ data class ChatSessionEntity(
         workspacePath = workspacePath,
         mode = runCatching { AgentMode.valueOf(mode) }.getOrDefault(AgentMode.BUILD),
         modeBeforePlan = modeBeforePlan?.let { runCatching { AgentMode.valueOf(it) }.getOrNull() },
+        goal = goal,
+        goalStatus = goalStatus?.let { runCatching { GoalStatus.valueOf(it) }.getOrNull() },
+        goalTurnCount = goalTurnCount,
+        goalStartInputTokens = goalStartInputTokens,
+        goalStartOutputTokens = goalStartOutputTokens,
         reasoningEffort = runCatching { ReasoningEffort.valueOf(reasoningEffort) }.getOrDefault(ReasoningEffort.MEDIUM),
         providerId = providerId,
         model = model,
@@ -60,6 +73,11 @@ data class ChatSessionEntity(
             workspacePath = session.workspacePath,
             mode = session.mode.name,
             modeBeforePlan = session.modeBeforePlan?.name,
+            goal = session.goal,
+            goalStatus = session.goalStatus?.name,
+            goalTurnCount = session.goalTurnCount,
+            goalStartInputTokens = session.goalStartInputTokens,
+            goalStartOutputTokens = session.goalStartOutputTokens,
             reasoningEffort = session.reasoningEffort.name,
             providerId = session.providerId,
             model = session.model,

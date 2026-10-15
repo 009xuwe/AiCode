@@ -48,11 +48,14 @@ import com.aicode.core.theme.Spacing
 import com.aicode.core.theme.semanticColors
 import com.aicode.core.ui.AppTextField
 import com.aicode.core.ui.dialogTextFieldColors
+import com.aicode.feature.disclaimer.presentation.DisclaimerDialog
+import com.aicode.feature.disclaimer.presentation.DisclaimerMode
 import com.aicode.feature.settings.data.repository.ALT_DOWNLOAD_MIRROR
 import com.aicode.feature.settings.data.repository.DEFAULT_DOWNLOAD_MIRROR
 import com.aicode.feature.settings.data.repository.UpdateChannel
 import com.aicode.feature.settings.data.repository.isValidDownloadMirror
 import compose.icons.FeatherIcons
+import compose.icons.feathericons.AlertCircle
 import compose.icons.feathericons.Book
 import compose.icons.feathericons.Check
 import compose.icons.feathericons.Download
@@ -63,7 +66,7 @@ import compose.icons.feathericons.Tag
 
 /**
  * 关于页：顶部应用信息、版本号（点击手动检查更新）、自动检查更新开关、更新通道、
- * 下载镜像源、GitHub 仓库、开源许可证。检查更新逻辑与弹窗由全局 [SettingsViewModel]
+ * 下载镜像源、GitHub 仓库、开源许可证、免责声明。检查更新逻辑与弹窗由全局 [SettingsViewModel]
  * 承载，本页只负责触发与展示设置项。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,6 +83,7 @@ internal fun AboutSection(
     val context = LocalContext.current
     var showChannelSheet by remember { mutableStateOf(false) }
     var showMirrorDialog by remember { mutableStateOf(false) }
+    var showDisclaimer by remember { mutableStateOf(false) }
 
     // 通过 PackageManager 读取 versionName/versionCode（项目未开启 BuildConfig）
     val appInfo = remember {
@@ -190,7 +194,21 @@ internal fun AboutSection(
                 title = stringResource(R.string.about_license),
                 onClick = { openUrl(context, LICENSE_URL) }
             )
+            SettingsDivider()
+            // 免责声明
+            SettingsRow(
+                icon = FeatherIcons.AlertCircle,
+                title = stringResource(R.string.about_disclaimer),
+                onClick = { showDisclaimer = true }
+            )
         }
+    }
+
+    if (showDisclaimer) {
+        DisclaimerDialog(
+            mode = DisclaimerMode.View,
+            onDismiss = { showDisclaimer = false }
+        )
     }
 
     if (showChannelSheet) {

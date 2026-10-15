@@ -1,6 +1,7 @@
 package com.aicode.di
 
 import android.content.Context
+import com.aicode.core.net.applyTcpKeepAlive
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -90,6 +91,7 @@ import com.aicode.feature.agent.domain.tool.mcp.ManageMcpTool
 import com.aicode.feature.agent.domain.tool.memory.MemoryTool
 import com.aicode.feature.agent.domain.tool.mode.PlanApprovalManager
 import com.aicode.feature.agent.domain.tool.mode.PlanModeTool
+import com.aicode.feature.agent.domain.tool.goal.GoalStatusTool
 import com.aicode.feature.agent.domain.tool.search.WebFetchTool
 import com.aicode.feature.agent.domain.tool.search.WebSearchTool
 import com.aicode.feature.agent.domain.tool.browser.BrowserTool
@@ -238,6 +240,8 @@ object AgentModule {
                     override fun connectionAcquired(call: Call, connection: Connection) {
                         connectionId = Integer.toHexString(System.identityHashCode(connection))
                         protocol = connection.protocol().toString()
+                        // 长连接在后台空闲时会被 NAT/路由器回收，缩短 keepalive 探测间隔以维持映射。
+                        connection.socket().applyTcpKeepAlive()
                     }
 
                     override fun callFailed(call: Call, ioe: IOException) {
@@ -367,6 +371,7 @@ object AgentModule {
         webSearchTool: WebSearchTool,
         webFetchTool: WebFetchTool,
         planModeTool: PlanModeTool,
+        goalStatusTool: GoalStatusTool,
         todoTool: TodoTool,
         memoryTool: MemoryTool,
         taskTool: TaskTool,
@@ -391,6 +396,7 @@ object AgentModule {
             register("websearch", webSearchTool)
             register("webfetch", webFetchTool)
             register("planMode", planModeTool)
+            register("goalStatus", goalStatusTool)
             register("todo", todoTool)
             register("memory", memoryTool)
             register("task", taskTool)

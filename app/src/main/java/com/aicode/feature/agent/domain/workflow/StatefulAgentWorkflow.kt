@@ -586,102 +586,23 @@ class StatefulAgentWorkflow @Inject constructor(
                             continue
                         }
 
-                        val acc = StringBuilder()
-                        val reasoningAcc = StringBuilder()
-                        var finalResponse: AIResponse? = null
-
                         // 调用统计埋点：记录请求发出/首字/结束时刻与 usage，失败与取消同样留痕。
                         val callStartElapsed = SystemClock.elapsedRealtime()
                         val callStartWall = System.currentTimeMillis()
                         val callKind = "chat"
-                        var ttfbElapsed: Long? = null
                         var callError: String? = null
                         var callCompleted = false
-
-                        // 流式 delta 节流：上游每个 chunk 都携带完整累积文本，逐条 send 会让
-                        // ViewModel 端每秒重建几十次状态、UI 端反复重启打字机协程。按时间窗口合并：
-                        // 窗口内只保留最新累积文本，到窗口边界才发送，把下游事件频率压到 ~16/s。
-                        // 打字机渲染本身有 100ms 节流，少发中间态无感知；collect 结束补发最后 pending。
-                        val DELTA_THROTTLE_MS = 60L
-                        var lastTextDeltaSentAt = 0L
-                        var lastReasoningDeltaSentAt = 0L
-                        var pendingTextDelta: String? = null
-                        var pendingReasoningDelta: String? = null
-                        var retryAttempts = 0
-                        suspend fun flushPendingTextDelta() {
-                            val text = pendingTextDelta ?: return
-                            pendingTextDelta = null
-                            send(AgentEvent.AssistantDelta(text))
-                        }
-                        suspend fun flushPendingReasoningDelta() {
-                            val text = pendingReasoningDelta ?: return
-                            pendingReasoningDelta = null
-                            send(AgentEvent.ReasoningDelta(text))
-                        }
+                        val stream = StreamAccumulator(callStartElapsed) { send(it) }
 
                         try {
                             // 发送前按实际模型的视觉能力处理图片（同 execute 路径）。
                             val supportsVision = activeModelSupportsVision(currentContext.sessionId)
                             val messagesToSend = sanitizeImagesForModel(compactedMessages, supportsVision)
-                            providerInUse.completeStream(systemPrompt, messagesToSend, currentTools, currentContext.reasoningEffort).collect { chunk ->
-                                when (chunk) {
-                                    is AIStreamChunk.TextDelta -> {
-                                        if (ttfbElapsed == null) ttfbElapsed = SystemClock.elapsedRealtime() - callStartElapsed
-                                        acc.append(chunk.text)
-                                        pendingTextDelta = acc.toString()
-                                        val now = SystemClock.elapsedRealtime()
-                                        if (now - lastTextDeltaSentAt >= DELTA_THROTTLE_MS) {
-                                            flushPendingTextDelta()
-                                            lastTextDeltaSentAt = now
-                                        }
-                                    }
-                                    is AIStreamChunk.ReasoningDelta -> {
-                                        // 思考内容也算首字（推理模型先吐思考再吐正文）
-                                        if (ttfbElapsed == null) ttfbElapsed = SystemClock.elapsedRealtime() - callStartElapsed
-                                        reasoningAcc.append(chunk.text)
-                                        pendingReasoningDelta = reasoningAcc.toString()
-                                        val now = SystemClock.elapsedRealtime()
-                                        if (now - lastReasoningDeltaSentAt >= DELTA_THROTTLE_MS) {
-                                            flushPendingReasoningDelta()
-                                            lastReasoningDeltaSentAt = now
-                                        }
-                                    }
-                                    is AIStreamChunk.Retrying -> {
-                                        retryAttempts = maxOf(retryAttempts, chunk.attempt)
-                                        acc.setLength(0)
-                                        reasoningAcc.setLength(0)
-                                        pendingTextDelta = null
-                                        pendingReasoningDelta = null
-                                        lastTextDeltaSentAt = 0L
-                                        lastReasoningDeltaSentAt = 0L
-                                        send(AgentEvent.Retrying(chunk.attempt, chunk.maxRetries, chunk.error))
-                                    }
-                                    is AIStreamChunk.KeySwitched -> {
-                                        acc.setLength(0)
-                                        reasoningAcc.setLength(0)
-                                        pendingTextDelta = null
-                                        pendingReasoningDelta = null
-                                        lastTextDeltaSentAt = 0L
-                                        lastReasoningDeltaSentAt = 0L
-                                        send(AgentEvent.KeySwitched(chunk.newIndex, chunk.total))
-                                    }
-                                    is AIStreamChunk.Final -> {
-                                        // 纯工具调用轮没有文本/思考增量，Final 是首个内容事件，兜底记为 TTFB
-                                        if (ttfbElapsed == null) ttfbElapsed = SystemClock.elapsedRealtime() - callStartElapsed
-                                        finalResponse = chunk.response
-                                    }
-                                    is AIStreamChunk.ToolCallDeclared -> {
-                                        // 工具名先于参数到达：立刻告诉 UI「模型准备调什么」，
-                                        // 免得长参数流式期间一直停在「正在思考」。
-                                        if (ttfbElapsed == null) ttfbElapsed = SystemClock.elapsedRealtime() - callStartElapsed
-                                        send(AgentEvent.ToolCallPreparing(chunk.name))
-                                    }
-                                }
-                            }
+                            providerInUse.completeStream(systemPrompt, messagesToSend, currentTools, currentContext.reasoningEffort)
+                                .collect { stream.onChunk(it) }
                             // 节流窗口内可能还压着最新累积文本：补发，保证 UI 尾巴拿到完整文本再交接落库。
-                            flushPendingTextDelta()
-                            flushPendingReasoningDelta()
-                            val aiResponse = finalResponse ?: AIResponse(content = acc.toString())
+                            stream.flush()
+                            val aiResponse = stream.finalResponse ?: AIResponse(content = stream.text.toString())
                             // 模型直出图片（Gemini 图像模型）不随流式增量到达，整块在 Final 里：
                             // 先把 base64 落盘到 ~/.aicode/generated-images/ 并构造 UI 附件（只存路径不存 base64），
                             // 再随 LlmResponse 把带 path 的 images 交 reduce 挂上 AssistantMessage 供下一回放。
@@ -708,8 +629,8 @@ class StatefulAgentWorkflow @Inject constructor(
                                 if (baselineUsage > 0) baselineUsage else requestEstimate, inputBudget, baselineUsage <= 0
                             ))
                             val responseMessageId = UUID.randomUUID().toString()
-                            val responseWithReasoning = if (reasoningAcc.isNotEmpty()) {
-                                aiResponse.copy(reasoning = reasoningAcc.toString())
+                            val responseWithReasoning = if (stream.reasoning.isNotEmpty()) {
+                                aiResponse.copy(reasoning = stream.reasoning.toString())
                             } else aiResponse
 
                             if (aiResponse.content.isNotBlank() || aiResponse.toolCalls.isNotEmpty() || attachments.isNotEmpty()) {
@@ -718,7 +639,7 @@ class StatefulAgentWorkflow @Inject constructor(
                                     AgentEvent.AssistantText(
                                         aiResponse.content,
                                         aiResponse.toolCalls,
-                                        reasoningAcc.toString(),
+                                        stream.reasoning.toString(),
                                         aiResponse.signature ?: "",
                                         aiResponse.inputTokens,
                                         aiResponse.outputTokens,
@@ -741,7 +662,7 @@ class StatefulAgentWorkflow @Inject constructor(
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            if (!overflowRecoveryAttempted && acc.isEmpty() && reasoningAcc.isEmpty() && isContextOverflow(e)) {
+                            if (!overflowRecoveryAttempted && stream.text.isEmpty() && stream.reasoning.isEmpty() && isContextOverflow(e)) {
                                 overflowRecoveryAttempted = true
                                 val recovery = contextCompactor.compactIfNeeded(state.messages, compactionProvider,
                                     currentContext.sessionId, force = true, windowProvider = aiProvider,
@@ -755,8 +676,8 @@ class StatefulAgentWorkflow @Inject constructor(
                                     continue
                                 }
                             }
-                            val partial = acc.toString()
-                            val reasoning = reasoningAcc.toString()
+                            val partial = stream.text.toString()
+                            val reasoning = stream.reasoning.toString()
                             // 流式被中断时也要落库已收到的思考：否则下方 finally 会清空流式思考气泡，
                             // 而落库的接力消息又没产生，表现为「思考显示后凭空消失且无报错」。
                             // 有正文或有思考其一即落库；两者皆空则不写空消息。
@@ -770,7 +691,7 @@ class StatefulAgentWorkflow @Inject constructor(
                             callError = e.message ?: e.javaClass.simpleName
                         } finally {
                             val durationMillis = (SystemClock.elapsedRealtime() - callStartElapsed).toInt()
-                            val usage = finalResponse
+                            val usage = stream.finalResponse
                             runCatching {
                                 llmCallRecordDao.insert(
                                     LlmCallRecordEntity(
@@ -783,7 +704,7 @@ class StatefulAgentWorkflow @Inject constructor(
                                         outputTokens = usage?.outputTokens ?: 0,
                                         cachedInputTokens = usage?.cachedInputTokens ?: 0,
                                         cacheCreationTokens = usage?.cacheCreationTokens ?: 0,
-                                        ttfbMillis = ttfbElapsed?.toInt(),
+                                        ttfbMillis = stream.ttfbElapsed?.toInt(),
                                         durationMillis = durationMillis,
                                         status = when {
                                             callCompleted -> "success"
@@ -792,7 +713,7 @@ class StatefulAgentWorkflow @Inject constructor(
                                         },
                                         errorMessage = callError,
                                         stopReason = usage?.stopReason,
-                                        retryCount = retryAttempts,
+                                        retryCount = stream.retryAttempts,
                                         createdAt = callStartWall
                                     )
                                 )
@@ -802,7 +723,7 @@ class StatefulAgentWorkflow @Inject constructor(
                     is AgentSideEffect.RequestPermission -> {
                         val tool = toolRegistry.getTool(effect.toolCall.name)
                         val argsPreview = JsonObject(effect.toolCall.arguments).toString().take(500)
-                        val checkResult = requestPermissionIfNeeded(tool, effect.toolCall.id, effect.toolCall.arguments, argsPreview, currentContext.mode, currentContext.sessionId)
+                        val checkResult = requestPermissionIfNeeded(tool, effect.toolCall.id, effect.toolCall.arguments, argsPreview, currentContext.permissionMode, currentContext.sessionId)
 
                         if (!checkResult.approved) {
                             val rawResult = ToolResult.Error(checkResult.denyReason, checkResult.errorCode).toTransportString()
@@ -959,6 +880,118 @@ class StatefulAgentWorkflow @Inject constructor(
         
         state.error?.let { send(AgentEvent.Failed(it, state.errorCode)) }
         send(AgentEvent.Completed)
+    }
+
+    /**
+     * 流式响应累计器：把 [AIProvider.completeStream] 的增量按时间窗口节流后推送，并保留最终响应与调用统计。
+     *
+     * 独立成类是为了不让 [executeEvents] 的协程状态机为每个增量都插入挂起点——那个 `channelFlow` 主体
+     * 是本工程最大的协程方法，规模过大会被 ART 长期交给解释器执行。
+     *
+     * 节流：上游每个 chunk 都携带完整累积文本，逐条推送会让 ViewModel 端每秒重建几十次状态、
+     * UI 端反复重启打字机协程。按时间窗口合并，窗口内只保留最新累积文本，到窗口边界才发送，
+     * 把下游事件频率压到 ~16/s；打字机渲染本身有 100ms 节流，少发中间态无感知。
+     */
+    private class StreamAccumulator(
+        private val callStartElapsed: Long,
+        private val emit: suspend (AgentEvent) -> Unit
+    ) {
+        private companion object {
+            const val DELTA_THROTTLE_MS = 60L
+        }
+
+        /** 累积正文（节流推送与最终落库都用它）。 */
+        val text = StringBuilder()
+
+        /** 累积思考内容。 */
+        val reasoning = StringBuilder()
+
+        var finalResponse: AIResponse? = null
+        var ttfbElapsed: Long? = null
+        var retryAttempts = 0
+
+        private var pendingText: String? = null
+        private var pendingReasoning: String? = null
+        private var lastTextSentAt = 0L
+        private var lastReasoningSentAt = 0L
+
+        suspend fun onChunk(chunk: AIStreamChunk) {
+            when (chunk) {
+                is AIStreamChunk.TextDelta -> {
+                    markTtfb()
+                    text.append(chunk.text)
+                    pendingText = text.toString()
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastTextSentAt >= DELTA_THROTTLE_MS) {
+                        flushText()
+                        lastTextSentAt = now
+                    }
+                }
+                is AIStreamChunk.ReasoningDelta -> {
+                    // 思考内容也算首字（推理模型先吐思考再吐正文）
+                    markTtfb()
+                    reasoning.append(chunk.text)
+                    pendingReasoning = reasoning.toString()
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastReasoningSentAt >= DELTA_THROTTLE_MS) {
+                        flushReasoning()
+                        lastReasoningSentAt = now
+                    }
+                }
+                is AIStreamChunk.Retrying -> {
+                    retryAttempts = maxOf(retryAttempts, chunk.attempt)
+                    reset()
+                    emit(AgentEvent.Retrying(chunk.attempt, chunk.maxRetries, chunk.error))
+                }
+                is AIStreamChunk.KeySwitched -> {
+                    reset()
+                    emit(AgentEvent.KeySwitched(chunk.newIndex, chunk.total))
+                }
+                is AIStreamChunk.Final -> {
+                    // 纯工具调用轮没有文本/思考增量，Final 是首个内容事件，兜底记为 TTFB
+                    markTtfb()
+                    finalResponse = chunk.response
+                }
+                is AIStreamChunk.ToolCallDeclared -> {
+                    // 工具名先于参数到达：立刻告诉 UI「模型准备调什么」，
+                    // 免得长参数流式期间一直停在「正在思考」。
+                    markTtfb()
+                    emit(AgentEvent.ToolCallPreparing(chunk.name))
+                }
+            }
+        }
+
+        /** 补发窗口内压着的最后一段文本（流结束时调用）。 */
+        suspend fun flush() {
+            flushText()
+            flushReasoning()
+        }
+
+        private fun markTtfb() {
+            if (ttfbElapsed == null) ttfbElapsed = SystemClock.elapsedRealtime() - callStartElapsed
+        }
+
+        /** 重试/换 Key 后重放：丢弃已推送内容，避免新旧文本拼接。 */
+        private fun reset() {
+            text.setLength(0)
+            reasoning.setLength(0)
+            pendingText = null
+            pendingReasoning = null
+            lastTextSentAt = 0L
+            lastReasoningSentAt = 0L
+        }
+
+        private suspend fun flushText() {
+            val t = pendingText ?: return
+            pendingText = null
+            emit(AgentEvent.AssistantDelta(t))
+        }
+
+        private suspend fun flushReasoning() {
+            val t = pendingReasoning ?: return
+            pendingReasoning = null
+            emit(AgentEvent.ReasoningDelta(t))
+        }
     }
 
     private fun isContextOverflow(error: Throwable): Boolean {

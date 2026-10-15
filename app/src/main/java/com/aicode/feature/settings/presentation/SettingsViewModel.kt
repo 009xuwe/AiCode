@@ -74,6 +74,7 @@ import com.aicode.feature.settings.data.repository.ExecutionModeRepository
 import com.aicode.feature.settings.data.repository.GeneralSettingsRepository
 import com.aicode.feature.settings.data.repository.AgentSoundSettingsRepository
 import com.aicode.feature.settings.data.repository.KeepaliveSettingsRepository
+import com.aicode.feature.settings.data.repository.LiveNotificationSettingsRepository
 import com.aicode.feature.settings.data.repository.LanguageSettingsRepository
 import com.aicode.feature.settings.data.repository.LogSettingsRepository
 import com.aicode.feature.settings.data.repository.ProxyConfig
@@ -359,6 +360,7 @@ class SettingsViewModel @Inject constructor(
     private val keepaliveSettingsRepository: KeepaliveSettingsRepository,
     private val screenOnSettingsRepository: ScreenOnSettingsRepository,
     private val agentSoundSettingsRepository: AgentSoundSettingsRepository,
+    private val liveNotificationSettingsRepository: LiveNotificationSettingsRepository,
     private val generalSettingsRepository: GeneralSettingsRepository,
     private val languageSettingsRepository: LanguageSettingsRepository,
     private val mcpConfigRepository: McpConfigRepository,
@@ -546,6 +548,9 @@ class SettingsViewModel @Inject constructor(
     private val _agentSoundEnabled = MutableStateFlow(false)
     val agentSoundEnabled: StateFlow<Boolean> = _agentSoundEnabled.asStateFlow()
 
+    private val _liveNotificationEnabled = MutableStateFlow(false)
+    val liveNotificationEnabled: StateFlow<Boolean> = _liveNotificationEnabled.asStateFlow()
+
     private val _autoRemoveStaleModels = MutableStateFlow(true)
     val autoRemoveStaleModels: StateFlow<Boolean> = _autoRemoveStaleModels.asStateFlow()
 
@@ -569,6 +574,12 @@ class SettingsViewModel @Inject constructor(
 
     private val _sendFileMaxSizeMb = MutableStateFlow(100)
     val sendFileMaxSizeMb: StateFlow<Int> = _sendFileMaxSizeMb.asStateFlow()
+
+    private val _goalMaxTurns = MutableStateFlow(50)
+    val goalMaxTurns: StateFlow<Int> = _goalMaxTurns.asStateFlow()
+
+    private val _goalMaxTokens = MutableStateFlow(500_000)
+    val goalMaxTokens: StateFlow<Int> = _goalMaxTokens.asStateFlow()
 
     private val _deleteExternalWorkspaceSessions = MutableStateFlow(false)
     val deleteExternalWorkspaceSessions: StateFlow<Boolean> = _deleteExternalWorkspaceSessions.asStateFlow()
@@ -910,6 +921,12 @@ class SettingsViewModel @Inject constructor(
             }
 
             launch {
+                liveNotificationSettingsRepository.enabledFlow.collectLatest {
+                    _liveNotificationEnabled.value = it
+                }
+            }
+
+            launch {
                 generalSettingsRepository.autoRemoveStaleModelsFlow.collectLatest {
                     _autoRemoveStaleModels.value = it
                 }
@@ -954,6 +971,18 @@ class SettingsViewModel @Inject constructor(
             launch {
                 generalSettingsRepository.sendFileMaxSizeMbFlow.collectLatest {
                     _sendFileMaxSizeMb.value = it
+                }
+            }
+
+            launch {
+                generalSettingsRepository.goalMaxTurnsFlow.collectLatest {
+                    _goalMaxTurns.value = it
+                }
+            }
+
+            launch {
+                generalSettingsRepository.goalMaxTokensFlow.collectLatest {
+                    _goalMaxTokens.value = it
                 }
             }
 
@@ -1896,6 +1925,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setLiveNotificationEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            liveNotificationSettingsRepository.setEnabled(enabled)
+        }
+    }
+
     /** 拉取模型成功后是否自动移除远端已不存在的本地模型。 */
     fun setAutoRemoveStaleModels(enabled: Boolean) {
         viewModelScope.launch {
@@ -1949,6 +1984,20 @@ class SettingsViewModel @Inject constructor(
     fun setSendFileMaxSizeMb(mb: Int) {
         viewModelScope.launch {
             generalSettingsRepository.setSendFileMaxSizeMb(mb)
+        }
+    }
+
+    /** goal 自主循环最大续跑轮数（不小于 1）。 */
+    fun setGoalMaxTurns(turns: Int) {
+        viewModelScope.launch {
+            generalSettingsRepository.setGoalMaxTurns(turns)
+        }
+    }
+
+    /** goal 自主循环 token 预算（不小于 1000）。 */
+    fun setGoalMaxTokens(tokens: Int) {
+        viewModelScope.launch {
+            generalSettingsRepository.setGoalMaxTokens(tokens)
         }
     }
 
