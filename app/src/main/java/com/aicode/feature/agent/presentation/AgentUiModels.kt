@@ -2,6 +2,7 @@ package com.aicode.feature.agent.presentation
 
 import androidx.compose.runtime.Immutable
 import com.aicode.feature.agent.domain.model.AgentImage
+import com.aicode.feature.agent.domain.model.GoalStatus
 import com.aicode.feature.agent.domain.provider.RetryErrorInfo
 import com.aicode.feature.workspace.domain.FileEntry
 import kotlinx.serialization.Serializable
@@ -230,5 +231,15 @@ data class QueuedRequest(
     val projectRoot: String,
     val inputImages: List<AgentImage> = emptyList(),
     val inputAttachments: List<AgentAttachment> = emptyList(),
-    val isAutoTrigger: Boolean = false
+    val isAutoTrigger: Boolean = false,
+    /** 是否把本轮用户消息落库；goal 续跑等内部轮次置 false，避免污染会话历史。 */
+    val persistUserMessage: Boolean = true
+)
+
+/** 会话级持续目标（goal）的 UI 快照：文本、状态与已续跑轮数。 */
+@Immutable
+data class SessionGoalUi(
+    val text: String,
+    val status: GoalStatus,
+    val turnCount: Int
 )
