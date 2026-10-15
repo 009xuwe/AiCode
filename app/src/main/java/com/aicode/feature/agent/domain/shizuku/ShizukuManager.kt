@@ -60,6 +60,13 @@ class ShizukuManager @Inject constructor(
         /** Shizuku 官方应用包名（Sui 也用它作为入口）。 */
         const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
 
+        /**
+         * Shizuku 客户端库依赖的权限名（见 provider aar 的 `<uses-permission>`）。
+         * 实现方（官方或第三方分叉）必须定义该权限，客户端才能取得授权，故可据此反查实现包，
+         * 不受实现包名变化影响。
+         */
+        const val SHIZUKU_PERMISSION = "moe.shizuku.manager.permission.API_V23"
+
         const val PERMISSION_REQUEST_CODE = 1001
 
         /** 服务身份 tag：不设时用类名，类名经 R8 混淆后不稳定，故显式固定。 */
@@ -158,20 +165,37 @@ class ShizukuManager @Inject constructor(
     }
 
     private fun computeState(): ShizukuState {
-        if (!isShizukuInstalled()) return ShizukuState.NOT_INSTALLED
-        if (!runCatching { Shizuku.pingBinder() }.getOrDefault(false)) return ShizukuState.NOT_RUNNING
-        // pre-v11 无 UserService，等同不可用。
-        if (runCatching { Shizuku.isPreV11() }.getOrDefault(false)) return ShizukuState.NOT_RUNNING
-        val granted = runCatching {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        }.getOrDefault(false)
-        return if (granted) ShizukuState.READY else ShizukuState.PERMISSION_DENIED
+        // pingBinder 与实现包名无关：任何兼容 Shizuku 协议的服务端（含改了包名的第三方分叉）
+        // 只要服务在运行都能 ping 通，故先看 binder，避免被包名检查抢先判成未安装。
+        if (runCatching { Shizuku.pingBinder() }.getOrDefault(false)) {
+            // pre-v11 无 UserService，等同不可用。
+            if (runCatching { Shizuku.isPreV11() }.getOrDefault(false)) return ShizukuState.NOT_RUNNING
+            val granted = runCatching {
+                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            }.getOrDefault(false)
+            return if (granted) ShizukuState.READY else ShizukuState.PERMISSION_DENIED
+        }
+        return if (isShizukuInstalled()) ShizukuState.NOT_RUNNING else ShizukuState.NOT_INSTALLED
     }
 
-    private fun isShizukuInstalled(): Boolean = runCatching {
-        context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
-        true
-    }.getOrDefault(false)
+    /**
+     * 是否已安装任一 Shizuku 实现。先查官方包名（快路径），未命中再按权限定义反查，
+     * 以覆盖改了包名的第三方分叉。
+     */
+    private fun isShizukuInstalled(): Boolean = findShizukuPackage() != null
+
+    @Suppress("DEPRECATION")
+    private fun findShizukuPackage(): String? {
+        runCatching { context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0) }
+            .onSuccess { return SHIZUKU_PACKAGE }
+        return runCatching {
+            context.packageManager.getInstalledPackages(PackageManager.GET_PERMISSIONS)
+                .firstOrNull { pkg ->
+                    pkg.permissions?.any { it.name == SHIZUKU_PERMISSION } == true
+                }
+                ?.packageName
+        }.getOrNull()
+    }
 
     /** 申请 Shizuku 授权。需在主线程调用（Shizuku 内部要求）。 */
     fun requestPermission() {
@@ -180,9 +204,11 @@ class ShizukuManager @Inject constructor(
             .onFailure { FileLogger.w(TAG, "申请 Shizuku 授权失败: ${it.message}") }
     }
 
-    /** 打开 Shizuku 应用；未安装则跳转官方下载页。 */
+    /** 打开 Shizuku 应用（含第三方分叉）；未安装则跳转官方下载页。 */
     fun openShizukuApp() {
-        val launch = context.packageManager.getLaunchIntentForPackage(SHIZUKU_PACKAGE)
+        val launch = findShizukuPackage()?.let {
+            context.packageManager.getLaunchIntentForPackage(it)
+        }
         runCatching {
             if (launch != null) {
                 launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
