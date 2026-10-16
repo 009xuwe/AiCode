@@ -112,5 +112,17 @@
     "tags": [
       "签到领额度"
     ]
+  },
+  {
+    "id": "opencsg",
+    "name": "OpenCSG",
+    "type": "OPENAI",
+    "baseUrl": "https://ai.space.opencsg.com/v1",
+    "isRecommended": true,
+    "badge": null,
+    "websiteUrl": "https://opencsg.com/signup?invitationCode=9MWOXANEF3",
+    "tags": [
+      "注册送99元"
+    ]
   }
 ]
