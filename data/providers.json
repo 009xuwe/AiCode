@@ -98,7 +98,8 @@
     "badge": null,
     "websiteUrl": "https://platform.xiaomimimo.com?ref=66QSUD",
     "tags": [
-      "注册送10元"
+      "注册送10元",
+      "需实名"
     ]
   },
   {
@@ -123,6 +124,19 @@
     "websiteUrl": "https://opencsg.com/signup?invitationCode=9MWOXANEF3",
     "tags": [
       "注册送99元"
+    ]
+  },
+  {
+    "id": "siliconflow",
+    "name": "SiliconFlow",
+    "type": "OPENAI",
+    "baseUrl": "https://api.siliconflow.cn/v1",
+    "isRecommended": false,
+    "badge": null,
+    "websiteUrl": "https://cloud.siliconflow.cn/i/HNDIQWXd",
+    "tags": [
+      "注册送16元",
+      "需实名"
     ]
   }
 ]
