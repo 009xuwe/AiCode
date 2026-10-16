@@ -55,6 +55,7 @@ There is nothing to set up beforehand: install the app, configure a model under 
 | Icon | Description |
 |------|-------------|
 | <img src="https://www.qiniu.com/favicon.ico" width="24" alt="Qiniu" /> | **[Qiniu Cloud AI](https://s.qiniu.com/vUryau)** — New users get 3,000,000 free tokens on sign-up (valid for 2 years), covering 50+ popular models |
+| <img src="https://opencsg.com/images/favicon.ico" width="24" alt="OpenCSG" /> | **[OpenCSG](https://opencsg.com/signup?invitationCode=9MWOXANEF3)** — Open-source large model community; new users get ¥99 credit on sign-up, with an OpenAI-compatible API covering popular models such as Qwen, GLM and DeepSeek |
 
 ## Features
 
