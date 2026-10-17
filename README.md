@@ -55,7 +55,6 @@ AiCode 是运行在 Android 上的通用 AI Coding Agent，把一套完整的 Li
 | 图标 | 描述 |
 |------|------|
 | <img src="https://www.qiniu.com/favicon.ico" width="24" alt="Qiniu" /> | **[七牛云 AI](https://s.qiniu.com/vUryau)** — 新用户注册赠 300 万 Token（2 年有效），支持 50+ 热门大模型 |
-| <img src="https://opencsg.com/images/favicon.ico" width="24" alt="OpenCSG" /> | **[OpenCSG](https://opencsg.com/signup?invitationCode=9MWOXANEF3)** — 开源大模型社区，新用户注册赠 99 元额度，提供 OpenAI 兼容 API，覆盖 Qwen、GLM、DeepSeek 等主流模型 |
 
 ## 功能特性
 
