@@ -115,18 +115,6 @@
     ]
   },
   {
-    "id": "opencsg",
-    "name": "OpenCSG",
-    "type": "OPENAI",
-    "baseUrl": "https://ai.space.opencsg.com/v1",
-    "isRecommended": true,
-    "badge": null,
-    "websiteUrl": "https://opencsg.com/signup?invitationCode=9MWOXANEF3",
-    "tags": [
-      "注册送99元"
-    ]
-  },
-  {
     "id": "siliconflow",
     "name": "SiliconFlow",
     "type": "OPENAI",
@@ -137,6 +125,18 @@
     "tags": [
       "注册送16元",
       "需实名"
+    ]
+  },
+  {
+    "id": "qiniu",
+    "name": "七牛云 AI",
+    "type": "OPENAI",
+    "baseUrl": "https://api.qnaigc.com/v1",
+    "isRecommended": false,
+    "badge": null,
+    "websiteUrl": "https://s.qiniu.com/vUryau",
+    "tags": [
+      "注册送300万Token"
     ]
   }
 ]
