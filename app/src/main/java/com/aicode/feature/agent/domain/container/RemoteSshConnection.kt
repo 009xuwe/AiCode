@@ -1,6 +1,7 @@
 package com.aicode.feature.agent.domain.container
 
 import com.aicode.core.util.FileLogger
+import com.aicode.feature.agent.domain.tool.explorer.shellQuote
 import com.aicode.feature.workspace.domain.remote.RemoteAuth
 import com.aicode.feature.credentials.domain.model.GitCredential
 import kotlinx.coroutines.CoroutineScope
@@ -272,7 +273,7 @@ class RemoteSshConnection @Inject constructor(
                 val session = client.startSession()
                 val cmd = session.exec(
                     "if [ -d ~/workspace ] && [ ! -L ~/workspace ]; then echo skip; " +
-                        "else ln -sfn '$ws' ~/workspace 2>/dev/null; echo done; fi"
+                        "else ln -sfn ${shellQuote(ws)} ~/workspace 2>/dev/null; echo done; fi"
                 )
                 val out = java.io.BufferedReader(java.io.InputStreamReader(cmd.inputStream)).readText().trim()
                 session.close()
@@ -389,7 +390,7 @@ class RemoteSshConnection @Inject constructor(
                 val gitconfig = buildString {
                     append("[include]\n")
                     append("    path = ~/.gitconfig\n")
-                    append("[includeIf \"gitdir:$wsRoot/\"]\n")
+                    append("[includeIf \"gitdir:${gitConfigValue(wsRoot)}/\"]\n")
                     append("    path = ~/.aicode/gitconfig.credential\n")
                 }
                 writeRemoteFile(client, "$aicodeDir/gitconfig", gitconfig)
@@ -436,6 +437,10 @@ class RemoteSshConnection @Inject constructor(
         session.exec("printf %s '$escaped' > '$dest'").join()
         session.close()
     }
+
+    /** gitconfig 值转义：转义反斜杠与双引号并去换行，避免工作区路径注入结构性配置项。 */
+    private fun gitConfigValue(value: String): String =
+        value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "").replace("\r", "")
 
     private fun enc(part: String): String = java.net.URLEncoder.encode(part, "UTF-8")
 

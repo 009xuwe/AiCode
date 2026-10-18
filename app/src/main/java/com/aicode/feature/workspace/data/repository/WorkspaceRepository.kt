@@ -269,7 +269,7 @@ class WorkspaceRepository @Inject constructor(
         val wsRoot = pathHomeResolver.expandHome(cfg.remoteWorkspacePath.trimEnd('/'))
         return runCatching {
             // ls -d */ 列出子目录，取基名
-            val output = execRemote("ls -d ${wsRoot}/*/ 2>/dev/null | xargs -n1 basename 2>/dev/null")
+            val output = execRemote("ls -d ${shellQuote(wsRoot)}/*/ 2>/dev/null | xargs -n1 basename 2>/dev/null")
             if (output.isBlank()) emptyList()
             else output.lines().filter { it.isNotBlank() }
                 .sortedBy { it.lowercase() }
