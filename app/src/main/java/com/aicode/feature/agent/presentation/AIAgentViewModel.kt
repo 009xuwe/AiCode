@@ -65,6 +65,7 @@ import com.aicode.feature.agent.domain.workflow.AgentWorkflow
 import com.aicode.feature.terminal.domain.TabFinishedEvent
 import com.aicode.feature.terminal.domain.TerminalKeepaliveService
 import com.aicode.feature.terminal.domain.TerminalSessionManager
+import com.aicode.feature.terminal.domain.TerminalSessionProvider
 import com.aicode.feature.terminal.domain.takeTailLines
 import com.aicode.feature.workspace.domain.FileAccessProvider
 import com.aicode.feature.workspace.domain.FileEntry
@@ -150,6 +151,7 @@ class AIAgentViewModel @Inject constructor(
     private val messagePersistenceUseCase: MessagePersistenceUseCase,
     private val planApprovalManager: PlanApprovalManager,
     private val terminalSessionManager: TerminalSessionManager,
+    private val terminalSessionProvider: TerminalSessionProvider,
     private val slashCommandRegistry: SlashCommandRegistry,
     private val fileMentionRepository: FileMentionRepository,
     private val checkpointManager: CheckpointManager,
@@ -1191,7 +1193,7 @@ class AIAgentViewModel @Inject constructor(
         // 订阅后台命令完成事件：notify=true 的命令结束后自动注入消息并触发 AI 新一轮。
         // 会话忙碌期间到达的事件会被缓存，待本轮结束后合并成一条发送（见 [flushMergedNotifications]）。
         viewModelScope.launch {
-            terminalSessionManager.tabFinishedEvents.collect { event ->
+            terminalSessionProvider.tabFinishedEvents.collect { event ->
                 handleBackgroundCommandFinished(event)
             }
         }
