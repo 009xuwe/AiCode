@@ -268,12 +268,16 @@ class WorkspaceRepository @Inject constructor(
         }
         val wsRoot = pathHomeResolver.expandHome(cfg.remoteWorkspacePath.trimEnd('/'))
         return runCatching {
-            // ls -d */ 列出子目录，取基名
-            val output = execRemote("ls -d ${wsRoot}/*/ 2>/dev/null | xargs -n1 basename 2>/dev/null")
+            // 目录名可含空格，不能交给 xargs/basename 按空白分词（会把 "new api" 拆成两条），
+            // 用 glob 逐项原样输出目录名。
+            val output = execRemote(
+                "cd ${shellQuote(wsRoot)} 2>/dev/null || exit 0; " +
+                    "for d in */; do [ -d \"\$d\" ] && printf '%s\\n' \"\${d%/}\"; done"
+            )
             if (output.isBlank()) emptyList()
             else output.lines().filter { it.isNotBlank() }
                 .sortedBy { it.lowercase() }
-                .map { Workspace(name = it.trim(), path = "$wsRoot/${it.trim()}", type = WorkspaceType.REMOTE) }
+                .map { Workspace(name = it, path = "$wsRoot/$it", type = WorkspaceType.REMOTE) }
         }.getOrElse {
             FileLogger.w(TAG, "远程工作区列表失败: $wsRoot", it)
             emptyList()
