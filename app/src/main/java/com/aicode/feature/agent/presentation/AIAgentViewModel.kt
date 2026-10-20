@@ -1240,15 +1240,19 @@ class AIAgentViewModel @Inject constructor(
             combine(
                 awaitingPermissionSessionIds,
                 askUserQuestionManager.pendingQuestion,
-                planApprovalManager.pendingApproval
-            ) { awaiting, question, plan ->
-                val labels = LinkedHashMap<String, Pair<Int, ApprovalKind>>()
-                awaiting.forEach { labels[it] = R.string.notification_approval_label_permission to ApprovalKind.PERMISSION }
+                planApprovalManager.pendingApproval,
+                toolPermissionManager.pendingRequest
+            ) { awaiting, question, plan, permission ->
+                val labels = LinkedHashMap<String, Triple<Int, ApprovalKind, String?>>()
+                awaiting.forEach {
+                    labels[it] = Triple(R.string.notification_approval_label_permission, ApprovalKind.PERMISSION,
+                        permission?.takeIf { request -> request.sessionId == it }?.id)
+                }
                 question?.sessionId?.takeIf { it.isNotBlank() }?.let {
-                    labels.putIfAbsent(it, R.string.notification_approval_label_question to ApprovalKind.QUESTION)
+                    labels.putIfAbsent(it, Triple(R.string.notification_approval_label_question, ApprovalKind.QUESTION, null))
                 }
                 plan?.sessionId?.takeIf { it.isNotBlank() }?.let {
-                    labels.putIfAbsent(it, R.string.notification_approval_label_plan to ApprovalKind.PLAN)
+                    labels.putIfAbsent(it, Triple(R.string.notification_approval_label_plan, ApprovalKind.PLAN, plan.id))
                 }
                 labels
             }.collect { labels ->
@@ -1258,7 +1262,8 @@ class AIAgentViewModel @Inject constructor(
                         sessionId = sid,
                         sessionTitle = session.title.ifBlank { context.getString(R.string.chat_new_session_btn) },
                         label = context.getString(info.first),
-                        kind = info.second
+                        kind = info.second,
+                        requestId = info.third
                     )
                 }
                 agentApprovalNotificationManager.update(pending)

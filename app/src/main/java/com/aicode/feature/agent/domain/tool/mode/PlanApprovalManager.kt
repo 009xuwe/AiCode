@@ -2,6 +2,7 @@ package com.aicode.feature.agent.domain.tool.mode
 
 import com.aicode.core.util.FileLogger
 import com.aicode.feature.agent.data.local.dao.ChatSessionDao
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -40,7 +41,7 @@ class PlanApprovalManager @Inject constructor(
     /** 挂起等待用户在计划审查面板中的决策。 */
     suspend fun awaitApproval(reason: String, sessionId: String? = null): PlanApprovalChoice {
         val decision = CompletableDeferred<PlanApprovalChoice>()
-        val key = sessionId ?: "anon-${System.nanoTime()}"
+        val key = UUID.randomUUID().toString()
         synchronized(lock) {
             pending[key] = Entry(reason, sessionId, decision)
             publish()
@@ -63,11 +64,15 @@ class PlanApprovalManager @Inject constructor(
 
     /** UI 回传用户选择，唤醒最早挂起的 [awaitApproval]。 */
     fun resolve(choice: PlanApprovalChoice) {
+        val id = pendingApproval.value?.id ?: return
+        resolve(id, choice)
+    }
+
+    fun resolve(id: String, choice: PlanApprovalChoice) {
         val entry = synchronized(lock) {
-            val first = pending.entries.firstOrNull() ?: return
-            pending.remove(first.key)
+            val target = pending.remove(id) ?: return
             publish()
-            first.value
+            target
         }
 
         // 用户拒绝时，回滚数据库中的模式到 PLAN（SwitchModeTool 已写入 BUILD）
@@ -80,7 +85,9 @@ class PlanApprovalManager @Inject constructor(
 
     /** 在持锁区内调用：把内部表投影到对外展示的单个请求（取最早进入的）。 */
     private fun publish() {
-        _pendingApproval.value = pending.values.firstOrNull()?.let { PlanApprovalRequest(reason = it.reason, sessionId = it.sessionId) }
+        _pendingApproval.value = pending.entries.firstOrNull()?.let { (id, entry) ->
+            PlanApprovalRequest(reason = entry.reason, sessionId = entry.sessionId, id = id)
+        }
     }
 
     /** 回滚会话模式到 PLAN（SwitchModeTool 已提前写入目标模式，未获批准时还原）。 */
@@ -107,7 +114,7 @@ class PlanApprovalManager @Inject constructor(
     }
 }
 
-data class PlanApprovalRequest(val reason: String, val sessionId: String? = null)
+data class PlanApprovalRequest(val reason: String, val sessionId: String? = null, val id: String = UUID.randomUUID().toString())
 
 enum class PlanApprovalChoice {
     /** 批准计划，切换到 BUILD 模式执行 */
