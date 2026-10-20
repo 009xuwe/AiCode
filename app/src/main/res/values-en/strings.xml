@@ -1092,8 +1092,8 @@
 
     <!-- Git Conflict -->
     <string name="git_conflicted_count">Conflicts (%1$s)</string>
-    <string name="git_conflict_detected">Merge Conflicts Detected</string>
-    <string name="git_conflict_hint">Resolve conflicts in editor then stage the files, or abort the merge.</string>
+    <string name="git_merge_pending_title">Merge Awaiting Commit</string>
+    <string name="git_merge_pending_hint">There are no unresolved conflicts. Review and stage the changes you want to keep, then commit to complete the merge.</string>
     <string name="git_action_abort_merge">Abort Merge</string>
     <string name="git_abort_merge_confirm">Abort the current merge? Unresolved changes will be discarded and the working tree will be restored.</string>
 

@@ -1092,8 +1092,8 @@
 
     <!-- Git Conflict -->
     <string name="git_conflicted_count">存在冲突 (%1$s)</string>
-    <string name="git_conflict_detected">检测到合并冲突</string>
-    <string name="git_conflict_hint">请在编辑器中解决冲突后暂存文件，或中止本次合并。</string>
+    <string name="git_merge_pending_title">合并待提交</string>
+    <string name="git_merge_pending_hint">当前没有未解决的冲突。请确认并暂存需要保留的改动，然后提交以完成合并。</string>
     <string name="git_action_abort_merge">中止合并</string>
     <string name="git_abort_merge_confirm">确定中止当前合并吗？未解决的冲突改动将被放弃，工作区将还原到合并前的状态。</string>
 
