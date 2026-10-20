@@ -12,6 +12,8 @@ import com.aicode.core.util.FileLogger
 import com.aicode.feature.agent.domain.container.ConnectionState
 import com.aicode.feature.agent.domain.container.RemoteSshConnection
 import com.aicode.feature.agent.domain.session.SessionUseCase
+import com.aicode.feature.credentials.data.CredentialInjectSettingsRepository
+import com.aicode.feature.credentials.domain.repository.CredentialRepository
 import com.aicode.feature.settings.data.repository.ExecutionMode
 import com.aicode.feature.settings.data.repository.ExecutionModeHolder
 import com.aicode.feature.settings.data.repository.GeneralSettingsRepository
@@ -58,7 +60,9 @@ class WorkspaceRepository @Inject constructor(
     private val remoteSshConnection: RemoteSshConnection,
     private val pathHomeResolver: PathHomeResolver,
     private val sessionUseCase: SessionUseCase,
-    private val generalSettingsRepository: GeneralSettingsRepository
+    private val generalSettingsRepository: GeneralSettingsRepository,
+    private val credentialInjectSettings: CredentialInjectSettingsRepository,
+    private val credentialRepository: CredentialRepository
 ) {
     /** 校验失败时给 UI 的提示文案（如目录不可写/无法解析），消费后置 null。 */
     private val _addError = MutableStateFlow<String?>(null)
@@ -176,7 +180,15 @@ class WorkspaceRepository @Inject constructor(
         // 远程模式：选中工作区后更新符号链接，让 Bash 的 ~/workspace 指向当前工作区
         if (!isLocal() && target != null) {
             remoteSshConnection.updateWorkspaceSymlink(target.path)
+            syncRemoteCredentials(target.path)
         }
+    }
+
+    private suspend fun syncRemoteCredentials(workspacePath: String) {
+        val config = remoteSshConnection.config ?: return
+        val key = credentialInjectSettings.serverKey(config.host, config.port)
+        if (!credentialInjectSettings.isAutoInjectEnabled(key)) return
+        remoteSshConnection.uploadGitCredentialConfig(credentialRepository.getAll().first(), workspacePath)
     }
 
     private fun isLocal(): Boolean =
@@ -321,6 +333,7 @@ class WorkspaceRepository @Inject constructor(
         // 远程模式：切换后更新符号链接指向新工作区
         if (!isLocal()) {
             remoteSshConnection.updateWorkspaceSymlink(target.path)
+            syncRemoteCredentials(target.path)
         }
     }
 
