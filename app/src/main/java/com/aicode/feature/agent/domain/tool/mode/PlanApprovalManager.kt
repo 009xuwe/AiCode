@@ -80,7 +80,7 @@ class PlanApprovalManager @Inject constructor(
 
     /** 在持锁区内调用：把内部表投影到对外展示的单个请求（取最早进入的）。 */
     private fun publish() {
-        _pendingApproval.value = pending.values.firstOrNull()?.let { PlanApprovalRequest(it.reason) }
+        _pendingApproval.value = pending.values.firstOrNull()?.let { PlanApprovalRequest(reason = it.reason, sessionId = it.sessionId) }
     }
 
     /** 回滚会话模式到 PLAN（SwitchModeTool 已提前写入目标模式，未获批准时还原）。 */
@@ -107,7 +107,7 @@ class PlanApprovalManager @Inject constructor(
     }
 }
 
-data class PlanApprovalRequest(val reason: String)
+data class PlanApprovalRequest(val reason: String, val sessionId: String? = null)
 
 enum class PlanApprovalChoice {
     /** 批准计划，切换到 BUILD 模式执行 */
