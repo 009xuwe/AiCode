@@ -50,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -458,6 +459,11 @@ fun SettingsScreen(
     // 滚动位置必须提到 AnimatedContent 之外持有：菜单页作为分区分支被切走时会被 dispose，
     // 内部 rememberScrollState 一并丢弃，从二级页返回就跳回顶部。
     val menuScrollState = rememberScrollState()
+    // 同理：一级 / 详情页整块内容切走后会被 AnimatedContent dispose，内部 rememberScrollState、
+    // rememberLazyListState 一并丢失，从下一级页面返回就跳回顶部（供应商、技能、MCP 等所有列表都中招）。
+    // 用 SaveableStateHolder 按分区名接住这些 rememberSaveable 状态；编辑类页面不走这一步
+    // （它们在 AnimatedContent 里是独立分支），否则每次进编辑器会把上次的输入恢复出来。
+    val sectionStateHolder = rememberSaveableStateHolder()
     val menuBody: @Composable () -> Unit = {
         SettingsMenu(
             scrollState = menuScrollState,
@@ -625,6 +631,15 @@ fun SettingsScreen(
                 )
 
             else -> {
+            // 用分区名接住本页内部的滚动位置等 rememberSaveable 状态，返回时原样恢复（详见 sectionStateHolder）。
+            // 详情页要带上条目身份：换成另一个技能 / 子代理 / 提示词进来，不能继承上一条的滚动位置。
+            val stateKey: String = when (current) {
+                SettingsSection.SkillDetail -> "SkillDetail:${selectedSkill?.name.orEmpty()}"
+                SettingsSection.SubAgentDetail -> "SubAgentDetail:${selectedSubAgent?.name.orEmpty()}"
+                SettingsSection.PromptDetail -> "PromptDetail:${selectedPrompt?.number ?: 0}"
+                else -> current.name
+            }
+            sectionStateHolder.SaveableStateProvider(stateKey) {
             // 存储页的顶栏刷新按钮与页面内容要共用同一个 ViewModel，故在此分支创建；
             // 它的构造即触发一次全盘统计，不能提到 SettingsScreen 顶层（那样每次进设置页都会扫盘）。
             val storageViewModel: com.aicode.feature.settings.presentation.StorageViewModel? =
@@ -1116,6 +1131,7 @@ fun SettingsScreen(
             }
         }
     }
+        } // SaveableStateProvider 结束
         } // else 分支结束（storageViewModel 作用域）
         } // 详情区 when 结束
         } // AnimatedContent 结束
