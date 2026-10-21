@@ -574,7 +574,7 @@ class SettingsViewModel @Inject constructor(
     private val _enterToSend = MutableStateFlow(false)
     val enterToSend: StateFlow<Boolean> = _enterToSend.asStateFlow()
 
-    private val _compactionThresholdPercent = MutableStateFlow(90)
+    private val _compactionThresholdPercent = MutableStateFlow(85)
     val compactionThresholdPercent: StateFlow<Int> = _compactionThresholdPercent.asStateFlow()
 
     private val _sendFileMaxSizeMb = MutableStateFlow(100)
