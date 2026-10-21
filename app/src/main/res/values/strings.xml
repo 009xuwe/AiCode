@@ -1,6 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AiCode</string>
+    <string name="common_tool_missing_argument">缺少参数：%1$s。</string>
+    <string name="plan_mode_invalid_action">无效的 action：%1$s。支持 enter 或 exit。</string>
+    <string name="plan_mode_already_active">当前已处于 PLAN（计划）模式。</string>
+    <string name="plan_mode_not_active">当前不在 PLAN 模式，无法退出。</string>
+    <string name="plan_mode_session_required">未关联会话，无法切换模式。</string>
+    <string name="plan_mode_session_missing">会话不存在，无法切换模式。</string>
+    <string name="plan_mode_goal_active">目标正在自主运行，暂不支持进入或退出 PLAN 模式。</string>
+    <string name="plan_mode_entered">已进入 PLAN（计划）模式。</string>
+    <string name="plan_mode_exited">已退出 PLAN，恢复为 %1$s 模式。</string>
+    <string name="plan_mode_enter_action">进入 PLAN 模式</string>
+    <string name="plan_mode_exit_action">退出 PLAN 模式</string>
+    <string name="plan_mode_reason_unspecified">未提供理由</string>
+    <string name="plan_mode_refinement_requested">用户选择继续完善方案，当前保持 PLAN 模式。等待具体反馈后再调整，暂不重复申请退出。</string>
+    <string name="plan_mode_approved_build">计划已获批准，当前为 BUILD 模式。按已批准的范围实施。</string>
+    <string name="plan_mode_approved_auto">计划已获批准，已恢复 AUTO 模式。按已批准的范围实施，工具调用遵守 AUTO 权限策略。</string>
+    <string name="plan_mode_external_build">用户已切换到 BUILD 模式，后续操作遵守该模式权限和当前任务范围。</string>
+    <string name="plan_mode_external_auto">用户已切换到 AUTO 模式，后续操作遵守该模式权限和当前任务范围。</string>
+    <string name="plan_mode_request_title">切换计划模式</string>
+    <string name="plan_mode_request_summary">申请%1$s</string>
+    <string name="plan_mode_request_details">操作：%1$s\n\n理由：%2$s</string>
+    <string name="tool_plan_mode_denied">当前为 PLAN（计划）模式，此操作未执行。该模式仅允许只读探索；需要实施时，请提交方案并申请退出 PLAN。</string>
+    <string name="tool_permission_rule_denied">权限规则禁止执行此工具。</string>
+    <string name="tool_command_rule_denied">权限规则禁止执行此命令。</string>
+    <string name="tool_shizuku_confirmation_reason">Shizuku 会以 adb shell 身份操作 Android 系统，需要逐次确认，无法保存为始终允许。</string>
+    <string name="tool_vision_images_attached">已附加 %1$d 张图片，可直接查看和分析。</string>
+    <string name="tool_vision_focus">关注点：%1$s</string>
+    <string name="tool_vision_empty_response">识图模型未返回分析内容。</string>
+    <string name="tool_vision_default_single">请描述图片中的关键信息，包括可辨认的文字、元素和布局。不清楚的内容请注明。</string>
+    <string name="tool_vision_default_multiple">请按顺序描述这 %1$d 张图片中的关键信息，再比较它们的相同点与差异。不清楚的内容请注明。</string>
+    <string name="tool_mcp_stdio_added">已添加本地 MCP 服务「%2$s」（%1$s）。配置将在下一次会话生效；所需运行时需另行安装。</string>
+    <string name="tool_mcp_invalid_name">MCP 服务器名称只能包含 ASCII 字母、数字、下划线和连字符，当前为：%1$s。</string>
+    <string name="tool_memory_saved">已保存记忆「%1$s」（%2$s）。后续会话可看到摘要，需要正文时用 read 读取。</string>
+    <string name="tool_subagent_message_delivered">消息已投递。运行中的子代理会尽快收到，已结束的会继续处理消息。</string>
+    <string name="tool_browser_screenshot_failed">暂时无法截图。可稍后重试，或用 getText/getHtml 读取页面内容。</string>
+    <string name="tool_browser_condition_met">条件已满足。</string>
+    <string name="tool_browser_wait_timeout">等待超时，条件尚未满足。</string>
+    <string name="tool_output_saved_hint">完整内容已保存到 %1$s，可用 readFile 分段读取。</string>
+    <string name="tool_output_unsaved_hint">完整内容保存失败；当前仅保留开头和结尾，可缩小输出范围后重试。</string>
+    <string name="tool_output_omitted">\n\n[已省略中间 %1$d 个字符。%2$s]\n\n</string>
     <string name="chat_context_usage_estimated">预计占可用输入预算 %1$d%%</string>
     <string name="agent_input_budget_exceeded">上下文超过当前模型的可用输入预算，请缩短输入或减少工具定义。</string>
 

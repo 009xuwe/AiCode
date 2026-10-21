@@ -1,5 +1,8 @@
 package com.aicode.feature.agent.domain.permission
 
+import android.content.Context
+import com.aicode.R
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.aicode.feature.agent.domain.tool.AgentTool
 import com.aicode.feature.agent.domain.tool.ToolCapability
 import com.aicode.feature.settings.data.repository.ToolSafetySettingsRepository
@@ -27,7 +30,8 @@ import javax.inject.Singleton
 @Singleton
 class ToolPermissionPolicyEngine @Inject constructor(
     private val rulesRepo: PermissionRulesRepository,
-    private val toolSafetySettings: ToolSafetySettingsRepository
+    private val toolSafetySettings: ToolSafetySettingsRepository,
+    @param:ApplicationContext private val appContext: Context
 ) {
     private companion object {
         /** 以 `command` 参数承载 shell 命令、按命令前缀做指令级匹配的工具。 */
@@ -35,9 +39,6 @@ class ToolPermissionPolicyEngine @Inject constructor(
 
         /** Shizuku 工具：以 adb shell 身份直接操作宿主 Android 系统，按高危处理（一律弹窗、不可记忆）。 */
         const val SHIZUKU_TOOL = "Shizuku"
-
-        const val REASON_SHIZUKU =
-            "Shizuku 直接以 adb shell 身份操作宿主 Android 系统，权限高危，仅支持单次放行，不可记忆"
 
         /**
          * 合并后的终端会话工具：其 `start` 动作承载 shell 命令，需走指令级前缀匹配；
@@ -125,7 +126,7 @@ class ToolPermissionPolicyEngine @Inject constructor(
     suspend fun evaluate(tool: AgentTool?, toolName: String, args: Map<String, JsonElement>, mode: com.aicode.feature.agent.domain.model.AgentMode): EvalResult {
         val capabilities = tool?.effectiveCapabilities(args).orEmpty()
         if (mode == com.aicode.feature.agent.domain.model.AgentMode.PLAN && isDangerousTool(toolName, args, capabilities)) {
-            return EvalResult(Verdict.DENY, emptyList(), denyReason = "当前处于 PLAN（计划）模式，系统物理沙盒已禁止修改系统状态或执行写操作。请在计划模式下仅调用只读工具探索代码，不要尝试修改文件或执行命令。")
+            return EvalResult(Verdict.DENY, emptyList(), denyReason = appContext.getString(R.string.tool_plan_mode_denied))
         }
 
         if (mode == com.aicode.feature.agent.domain.model.AgentMode.AUTO) {
@@ -146,7 +147,7 @@ class ToolPermissionPolicyEngine @Inject constructor(
             }
             // Shizuku 直接操作宿主系统，AUTO 下也不自动放行，仍需逐次确认（除非已开启「禁用安全拦截」）。
             if (toolName == SHIZUKU_TOOL && !safetyDisabled) {
-                return EvalResult(Verdict.ASK, emptyList(), rememberDisabledReason = REASON_SHIZUKU)
+                return EvalResult(Verdict.ASK, emptyList(), rememberDisabledReason = appContext.getString(R.string.tool_shizuku_confirmation_reason))
             }
             return EvalResult(Verdict.ALLOW, emptyList())
         }
@@ -162,7 +163,7 @@ class ToolPermissionPolicyEngine @Inject constructor(
                 val rules = rulesRepo.loadEffectiveForCurrentProject().filter { it.toolName == toolName }
                 val whole = rules.filter { it.pattern == PermissionRule.WHOLE_TOOL }
                 if (whole.any { it.decision == PermissionDecision.DENY }) {
-                    return EvalResult(Verdict.DENY, emptyList(), denyReason = "该工具被项目权限规则策略禁止执行")
+                    return EvalResult(Verdict.DENY, emptyList(), denyReason = appContext.getString(R.string.tool_permission_rule_denied))
                 }
                 return EvalResult(Verdict.ALLOW, emptyList())
             }
@@ -258,7 +259,7 @@ class ToolPermissionPolicyEngine @Inject constructor(
 
     private fun evaluateGeneric(rules: List<PermissionRule>, capabilities: Set<ToolCapability>): EvalResult {
         val whole = rules.filter { it.pattern == PermissionRule.WHOLE_TOOL }
-        if (whole.any { it.decision == PermissionDecision.DENY }) return EvalResult(Verdict.DENY, emptyList(), denyReason = "该工具被项目权限规则策略禁止执行")
+        if (whole.any { it.decision == PermissionDecision.DENY }) return EvalResult(Verdict.DENY, emptyList(), denyReason = appContext.getString(R.string.tool_permission_rule_denied))
         if (whole.any { it.decision == PermissionDecision.ALLOW }) return EvalResult(Verdict.ALLOW, emptyList())
         if (capabilities.any { it in NON_REMEMBERABLE_CAPABILITIES }) {
             return EvalResult(
@@ -351,12 +352,12 @@ class ToolPermissionPolicyEngine @Inject constructor(
 
         // 1) DENY 优先（含对内置安全白名单的覆盖）：任一段命中 DENY 即拒。
         if (analysis.segments.any { seg -> deny.any { ShellCommandParser.matches(it.pattern, seg) } }) {
-            return EvalResult(Verdict.DENY, emptyList(), denyReason = "该命令被项目权限规则策略禁止执行")
+            return EvalResult(Verdict.DENY, emptyList(), denyReason = appContext.getString(R.string.tool_command_rule_denied))
         }
 
         // 2) Shizuku 高危工具：无论内置白名单或已记忆规则，一律弹窗且不可记忆。
         if (forceAsk) {
-            return EvalResult(Verdict.ASK, emptyList(), rememberDisabledReason = REASON_SHIZUKU)
+            return EvalResult(Verdict.ASK, emptyList(), rememberDisabledReason = appContext.getString(R.string.tool_shizuku_confirmation_reason))
         }
 
         // 3) 不可静态判定 → 必须弹窗、不可记忆（内置白名单也不适用）。

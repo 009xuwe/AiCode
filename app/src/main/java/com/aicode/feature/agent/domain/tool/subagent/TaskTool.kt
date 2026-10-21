@@ -1,6 +1,9 @@
 package com.aicode.feature.agent.domain.tool.subagent
 
+import android.content.Context
+import com.aicode.R
 import com.aicode.core.util.FileLogger
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.aicode.feature.agent.data.local.dao.AgentMessageDao
 import com.aicode.feature.agent.data.local.dao.ChatSessionDao
 import com.aicode.feature.agent.domain.model.AgentContext
@@ -54,7 +57,8 @@ class TaskTool @Inject constructor(
     private val agentMessageDao: AgentMessageDao,
     private val eventBus: SubAgentEventBus,
     private val agentDefinitionRepository: AgentDefinitionRepository,
-    private val aiProviderRepository: AIProviderRepository
+    private val aiProviderRepository: AIProviderRepository,
+    @param:ApplicationContext private val appContext: Context
 ) : AbstractContextualTool() {
 
     private companion object {
@@ -76,7 +80,7 @@ class TaskTool @Inject constructor(
         }
     }
 
-    override val description = "管理子代理：创建、发消息、读取结果、停止、删除、列表。子代理拥有独立上下文与完整工具能力，可并行工作，最多同时运行 5 个。完成后会收到后台通知，不要轮询。用 send 可反复追加指令或对已完成子代理继续追问；子代理运行中也可能主动发消息。create 可用 agent 指定自定义子代理。"
+    override val description = "管理子代理：创建、发消息、读取结果、停止、删除、列出。子代理拥有独立上下文，按所选代理的工具集工作，不能嵌套创建子代理；最多同时运行 5 个。任务完成后会通知主会话，无需轮询；运行中也可能主动发消息。用 send 可追加指令或继续追问已完成的子代理。"
 
     override val parameters: Map<String, ToolParameter> = mapOf(
         "action" to ToolParameter(
@@ -100,7 +104,7 @@ class TaskTool @Inject constructor(
         "prompt" to ToolParameter(
             name = "prompt",
             type = ParameterType.STRING,
-            description = "给子代理的完整指令（create 必填），将作为它的第一条用户消息；子代理看到的是全新上下文",
+            description = "给子代理的完整指令（create 必填）。子代理看不到主会话上下文，需写明目标、已知信息、约束与预期产出",
             required = false
         ),
         "agent" to ToolParameter(
@@ -238,7 +242,7 @@ class TaskTool @Inject constructor(
             buildJsonObject {
                 put("id", subSessionId)
                 put("state", "delivered")
-                put("message", "消息已投递给子代理，运行中的将在下一批工具结果里收到，已完成的将被重新唤醒，可继续用 send 追加。")
+                put("message", appContext.getString(R.string.tool_subagent_message_delivered))
             }
         )
     }

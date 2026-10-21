@@ -1,6 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AiCode</string>
+    <string name="common_tool_missing_argument">Missing parameter: %1$s.</string>
+    <string name="plan_mode_invalid_action">Invalid action: %1$s. Supported values: enter or exit.</string>
+    <string name="plan_mode_already_active">Already in PLAN mode.</string>
+    <string name="plan_mode_not_active">Cannot exit PLAN: the session is not in PLAN mode.</string>
+    <string name="plan_mode_session_required">No session is associated with this request. Cannot switch modes.</string>
+    <string name="plan_mode_session_missing">Session not found. Cannot switch modes.</string>
+    <string name="plan_mode_goal_active">A goal is running autonomously. Entering or exiting PLAN is unavailable.</string>
+    <string name="plan_mode_entered">Entered PLAN mode.</string>
+    <string name="plan_mode_exited">Exited PLAN and restored %1$s mode.</string>
+    <string name="plan_mode_enter_action">Enter PLAN mode</string>
+    <string name="plan_mode_exit_action">Exit PLAN mode</string>
+    <string name="plan_mode_reason_unspecified">No reason provided</string>
+    <string name="plan_mode_refinement_requested">The user chose to refine the plan. Remain in PLAN and wait for specific feedback before making changes or requesting to exit again.</string>
+    <string name="plan_mode_approved_build">The plan was approved. BUILD mode is active; implement within the approved scope.</string>
+    <string name="plan_mode_approved_auto">The plan was approved and AUTO mode restored. Implement within the approved scope and follow AUTO permission rules.</string>
+    <string name="plan_mode_external_build">The user switched to BUILD. Continue within the current task scope and mode permissions.</string>
+    <string name="plan_mode_external_auto">The user switched to AUTO. Continue within the current task scope and mode permissions.</string>
+    <string name="plan_mode_request_title">Switch planning mode</string>
+    <string name="plan_mode_request_summary">Request to %1$s</string>
+    <string name="plan_mode_request_details">Action: %1$s\n\nReason: %2$s</string>
+    <string name="tool_plan_mode_denied">This operation was not executed because PLAN mode allows read-only exploration. To implement changes, submit the plan and request to exit PLAN.</string>
+    <string name="tool_permission_rule_denied">Permission rules prohibit this tool call.</string>
+    <string name="tool_command_rule_denied">Permission rules prohibit this command.</string>
+    <string name="tool_shizuku_confirmation_reason">Shizuku operates on Android as adb shell. Each call requires confirmation and cannot be saved as always allowed.</string>
+    <string name="tool_vision_images_attached">Attached %1$d images for direct viewing and analysis.</string>
+    <string name="tool_vision_focus">Focus: %1$s</string>
+    <string name="tool_vision_empty_response">The vision model returned no analysis.</string>
+    <string name="tool_vision_default_single">Describe the key information in the image, including legible text, elements, and layout. Note anything unclear.</string>
+    <string name="tool_vision_default_multiple">Describe the key information in each of these %1$d images in order, then compare their similarities and differences. Note anything unclear.</string>
+    <string name="tool_mcp_stdio_added">Added local MCP server %2$s (%1$s). The configuration takes effect in the next session; install any required runtime separately.</string>
+    <string name="tool_mcp_invalid_name">MCP server names may contain only ASCII letters, digits, underscores, and hyphens. Current value: %1$s.</string>
+    <string name="tool_memory_saved">Saved memory “%1$s” (%2$s). Its summary will be available in later sessions; use read for the full text.</string>
+    <string name="tool_subagent_message_delivered">Message delivered. A running subagent will receive it shortly; an idle subagent will resume to process it.</string>
+    <string name="tool_browser_screenshot_failed">A screenshot is currently unavailable. Try again later, or use getText/getHtml to read the page.</string>
+    <string name="tool_browser_condition_met">Condition met.</string>
+    <string name="tool_browser_wait_timeout">Timed out before the condition was met.</string>
+    <string name="tool_output_saved_hint">Full output saved to %1$s. Use readFile to read it in sections.</string>
+    <string name="tool_output_unsaved_hint">Saving the full output failed. Only the beginning and end are available; try again with a smaller output range.</string>
+    <string name="tool_output_omitted">\n\n[Omitted %1$d characters from the middle. %2$s]\n\n</string>
     <string name="chat_context_usage_estimated">Estimated input budget usage: %1$d%%</string>
     <string name="agent_input_budget_exceeded">Context exceeds the model input budget. Shorten the input or reduce tool definitions.</string>
 

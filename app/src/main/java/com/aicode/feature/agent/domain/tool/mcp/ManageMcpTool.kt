@@ -1,6 +1,9 @@
 package com.aicode.feature.agent.domain.tool.mcp
 
+import android.content.Context
+import com.aicode.R
 import com.aicode.core.util.FileLogger
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.aicode.feature.agent.domain.mcp.McpConfigRepository
 import com.aicode.feature.agent.domain.mcp.McpScope
 import com.aicode.feature.agent.domain.mcp.McpServerConfig
@@ -21,14 +24,15 @@ import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 
 class ManageMcpTool @Inject constructor(
-    private val mcpConfigRepository: McpConfigRepository
+    private val mcpConfigRepository: McpConfigRepository,
+    @param:ApplicationContext private val appContext: Context
 ) : AgentTool() {
     private companion object {
         const val TAG = "ManageMcpTool"
     }
 
     override val name = "manageMcp"
-    override val description = "管理 Model Context Protocol (MCP) 服务器。支持添加、删除与列表查询。添加/删除会修改 Agent 配置，不会自动安装 Node/Python 等运行时。"
+    override val description = "管理 Model Context Protocol (MCP) 服务器。支持添加、删除与列表查询。添加或删除会修改 Agent 配置，下一次会话生效；不会自动安装 Node/Python 等运行时。"
     override val permissionPolicy = ToolPermissionPolicy.ASK
     override val capabilities = setOf(ToolCapability.MODIFY_AGENT_CONFIG)
 
@@ -88,7 +92,7 @@ class ManageMcpTool @Inject constructor(
         val action = args["action"]?.jsonPrimitive?.contentOrNull ?: "unknown"
         val server = args["server_name"]?.jsonPrimitive?.contentOrNull ?: "未指定"
         val scope = resolveScope(args)
-        val scopeLabel = if (scope == McpScope.PROJECT) "当前项目" else "全局"
+        val scopeLabel = appContext.getString(if (scope == McpScope.PROJECT) R.string.mcp_scope_project else R.string.mcp_scope_global)
         val summary = when (action) {
             "add_stdio" -> "添加本地 MCP server：$server（$scopeLabel）"
             "add_http" -> "添加 HTTP MCP server：$server（$scopeLabel）"
@@ -109,7 +113,7 @@ class ManageMcpTool @Inject constructor(
     override suspend fun execute(args: Map<String, JsonElement>): ToolResult {
         val action = args["action"]?.jsonPrimitive?.contentOrNull ?: return ToolResult.Error("缺少必需参数：action")
         val scope = resolveScope(args)
-        val scopeLabel = if (scope == McpScope.PROJECT) "当前项目" else "全局"
+        val scopeLabel = appContext.getString(if (scope == McpScope.PROJECT) R.string.mcp_scope_project else R.string.mcp_scope_global)
 
         suspend fun readServers(): List<McpServerConfig> =
             if (scope == McpScope.PROJECT) mcpConfigRepository.getProjectServers() else mcpConfigRepository.getGlobalServers()
@@ -154,7 +158,7 @@ class ManageMcpTool @Inject constructor(
                     servers.add(newServer)
                     writeServers(servers)
                     
-                    ToolResult.Success(JsonPrimitive("已添加 $scopeLabel 本地 MCP server：$name，配置将在下一次会话生效。若命令依赖 Node/Python 等运行时，请通过命令工具在用户确认后安装。"))
+                    ToolResult.Success(JsonPrimitive(appContext.getString(R.string.tool_mcp_stdio_added, scopeLabel, name)))
                 }
                 "add_http" -> {
                     val name = args["server_name"]?.jsonPrimitive?.contentOrNull ?: return ToolResult.Error("add_http 缺少必需参数：server_name")
@@ -184,7 +188,7 @@ class ManageMcpTool @Inject constructor(
     }
 
     private fun invalidNameMessage(name: String): String =
-        "server_name 只能含 ASCII 字母、数字、下划线与连字符（当前：$name）。server 名称会拼成 mcp__<server_name>__<tool> 送给模型，必须符合工具命名规范。"
+        appContext.getString(R.string.tool_mcp_invalid_name, name)
 
     private fun resolveScope(args: Map<String, JsonElement>): McpScope =
         when (args["scope"]?.jsonPrimitive?.contentOrNull) {
