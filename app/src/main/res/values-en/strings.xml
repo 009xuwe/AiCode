@@ -1229,11 +1229,10 @@
     <string name="prompts_field_content_placeholder">What the model should follow</string>
     <string name="prompts_editor_new">New prompt</string>
     <string name="prompts_editor_edit">Edit prompt</string>
-    <string name="prompts_add_sheet_title">Prompts</string>
     <string name="prompts_add_prompt">Add fragment</string>
-    <string name="prompts_add_prompt_hint">Insert a new fragment with a free number</string>
+    <string name="prompts_reset_custom">Reset custom prompts</string>
+    <string name="prompts_reset_confirm">Deletes every custom prompt fragment in this project and the global layer; each number falls back to the built-in prompt. This cannot be undone.</string>
     <string name="prompts_help">Help</string>
-    <string name="prompts_help_hint">How it works and when it applies</string>
     <string name="prompts_disable_builtin">Disable all built-in prompts</string>
     <string name="prompts_disable_builtin_hint">Keep only your own fragments; you must supply every rule yourself</string>
 

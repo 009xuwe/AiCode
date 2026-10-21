@@ -112,6 +112,7 @@ import compose.icons.feathericons.Edit2
 import compose.icons.feathericons.PieChart
 import compose.icons.feathericons.Plus
 import compose.icons.feathericons.RefreshCw
+import compose.icons.feathericons.RotateCcw
 import compose.icons.feathericons.Save
 import compose.icons.feathericons.Server
 import compose.icons.feathericons.Shield
@@ -349,8 +350,8 @@ fun SettingsScreen(
     var selectedSkill by remember { mutableStateOf<SkillUiEntry?>(null) }
     var skillToDelete by remember { mutableStateOf<SkillUiEntry?>(null) }
 
-    // 自定义提示词：右上角「+」弹层可见性 + 编辑目标（新建/编辑/固定片段）
-    var showPromptsAddSheet by remember { mutableStateOf(false) }
+    // 自定义提示词：编辑目标（新建/编辑/固定片段）+ 「重置」确认弹窗可见性
+    var showResetPrompts by remember { mutableStateOf(false) }
     var promptEditTarget by remember { mutableStateOf<PromptEditTarget?>(null) }
     var selectedPrompt by remember { mutableStateOf<PromptFragment?>(null) }
     var showPromptsAnnouncement by remember { mutableStateOf(false) }
@@ -807,6 +808,7 @@ fun SettingsScreen(
                             }
                         }
                         SettingsSection.Prompts -> {
+                            // 帮助入口只保留这一个：原来「+」弹层里的帮助项与它重复，弹层已去掉。
                             IconButton(onClick = { showPromptsAnnouncement = true }) {
                                 Icon(
                                     FeatherIcons.Info,
@@ -815,7 +817,21 @@ fun SettingsScreen(
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
-                            IconButton(onClick = { showPromptsAddSheet = true }) {
+                            // 重置：清空自定义提示词，各编号回落到内置（排在「+」左侧）。
+                            IconButton(onClick = { showResetPrompts = true }) {
+                                Icon(
+                                    FeatherIcons.RotateCcw,
+                                    contentDescription = stringResource(R.string.prompts_reset_custom),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            // 「+」直接进新建页，不再弹方式选择。
+                            IconButton(onClick = {
+                                promptEditTarget = PromptEditTarget(null)
+                                promptEditorReturn = SettingsSection.Prompts
+                                section = SettingsSection.PromptEditor
+                            }) {
                                 Icon(
                                     FeatherIcons.Plus,
                                     contentDescription = stringResource(R.string.prompts_add_prompt),
@@ -954,18 +970,21 @@ fun SettingsScreen(
                         onReorder = promptsViewModel::reorderFragments,
                         onToggleBuiltinDisabled = promptsViewModel::setBuiltinDisabled
                     )
-                    if (showPromptsAddSheet) {
-                        PromptsAddSheet(
-                            onDismiss = { showPromptsAddSheet = false },
-                            onAddFragment = {
-                                showPromptsAddSheet = false
-                                promptEditTarget = PromptEditTarget(null)
-                                promptEditorReturn = SettingsSection.Prompts
-                                section = SettingsSection.PromptEditor
+                    if (showResetPrompts) {
+                        AlertDialog(
+                            onDismissRequest = { showResetPrompts = false },
+                            title = { Text(stringResource(R.string.prompts_reset_custom)) },
+                            text = { Text(stringResource(R.string.prompts_reset_confirm)) },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    promptsViewModel.resetCustomFragments()
+                                    showResetPrompts = false
+                                }) { Text(stringResource(R.string.common_reset)) }
                             },
-                            onHelp = {
-                                showPromptsAddSheet = false
-                                showPromptsAnnouncement = true
+                            dismissButton = {
+                                TextButton(onClick = { showResetPrompts = false }) {
+                                    Text(stringResource(R.string.common_cancel))
+                                }
                             }
                         )
                     }

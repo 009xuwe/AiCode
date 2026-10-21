@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -46,7 +45,6 @@ import androidx.compose.ui.zIndex
 import com.aicode.R
 import com.aicode.core.theme.Spacing
 import com.aicode.core.theme.semanticColors
-import com.aicode.core.ui.AdaptiveModalBottomSheet
 import com.aicode.core.ui.AppSwitch
 import com.aicode.core.ui.SwipeToDeleteRow
 import com.aicode.feature.agent.domain.prompt.PromptFragment
@@ -55,8 +53,6 @@ import com.aicode.feature.settings.presentation.PromptsUiState
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.ChevronRight
 import compose.icons.feathericons.FileText
-import compose.icons.feathericons.Info
-import compose.icons.feathericons.Plus
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -197,43 +193,6 @@ private fun PromptList(
                         )
                     )
                 }
-            }
-        }
-    }
-}
-
-/**
- * 右上角「+」弹层：两项入口（添加片段 / 帮助）。
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun PromptsAddSheet(
-    onDismiss: () -> Unit,
-    onAddFragment: () -> Unit,
-    onHelp: () -> Unit
-) {
-    AdaptiveModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = Spacing.xl),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-        ) {
-            SettingsGroupHeader(text = stringResource(R.string.prompts_add_sheet_title))
-            SettingsGroup {
-                SettingsRow(
-                    icon = FeatherIcons.Plus,
-                    title = stringResource(R.string.prompts_add_prompt),
-                    subtitle = stringResource(R.string.prompts_add_prompt_hint),
-                    onClick = onAddFragment
-                )
-                SettingsDivider()
-                SettingsRow(
-                    icon = FeatherIcons.Info,
-                    title = stringResource(R.string.prompts_help),
-                    subtitle = stringResource(R.string.prompts_help_hint),
-                    onClick = onHelp
-                )
             }
         }
     }
