@@ -556,6 +556,7 @@
     <string name="backup_net_add_target">添加备份目标</string>
     <string name="backup_net_edit_target">编辑备份目标</string>
     <string name="backup_net_no_target">尚未添加网络备份目标</string>
+    <string name="backup_net_no_target_hint">点击右上角 + 添加 WebDAV 或 S3 备份目标</string>
     <string name="backup_net_upload">上传到云端</string>
     <string name="backup_net_upload_short">上传</string>
     <string name="backup_net_upload_subtitle">导出当前备份并上传到所选目标</string>
@@ -876,7 +877,7 @@
     <!-- Credential List -->
     <string name="credential_empty_hint">尚未添加凭据，点右上角 + 添加</string>
     <string name="credential_empty_title">暂无 Git 凭据</string>
-    <string name="credential_empty_desc">配置凭据后，AiCode 可在推送或拉取代码仓库时自动完成身份认证</string>
+    <string name="credential_empty_desc">点击右上角 + 添加：GitHub 快捷登录或手动配置访问令牌。配置后推送、拉取代码时会自动完成身份认证</string>
 
     <!-- Credential Add / Quick Login -->
     <string name="credential_add_sheet_title">添加凭据</string>

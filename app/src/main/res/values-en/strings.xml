@@ -556,6 +556,7 @@
     <string name="backup_net_add_target">Add backup target</string>
     <string name="backup_net_edit_target">Edit backup target</string>
     <string name="backup_net_no_target">No cloud backup target yet</string>
+    <string name="backup_net_no_target_hint">Tap + in the top right to add a WebDAV or S3 backup target</string>
     <string name="backup_net_upload">Upload</string>
     <string name="backup_net_upload_short">Upload</string>
     <string name="backup_net_upload_subtitle">Export the current backup and upload to the selected target</string>
@@ -876,7 +877,7 @@
     <!-- Credential List -->
     <string name="credential_empty_hint">No credentials yet, tap + to add</string>
     <string name="credential_empty_title">No Git Credentials</string>
-    <string name="credential_empty_desc">Configure credentials so AiCode can authenticate when pushing or pulling repositories</string>
+    <string name="credential_empty_desc">Tap + in the top right to sign in with GitHub or add an access token. AiCode then authenticates pushes and pulls automatically</string>
 
     <!-- Credential Add / Quick Login -->
     <string name="credential_add_sheet_title">Add Credential</string>

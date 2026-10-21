@@ -66,41 +66,14 @@ internal fun McpSection(
     onDelete: (String, McpScope) -> Unit
 ) {
     if (entries.isEmpty()) {
-        Box(
+        SettingsEmptyState(
+            icon = FeatherIcons.Terminal,
+            title = stringResource(R.string.mcp_empty),
+            hint = stringResource(R.string.mcp_empty_hint),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 48.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(Radius.lg)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        FeatherIcons.Terminal,
-                        contentDescription = null,
-                        modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.mcp_empty),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = stringResource(R.string.mcp_empty_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+                .padding(vertical = 48.dp)
+        )
         return
     }
 
