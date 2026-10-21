@@ -435,7 +435,8 @@ object AgentModule {
         keyRotator: ProviderKeyRotator,
         agentNotificationCenter: AgentNotificationCenter,
         eventInjector: AgentEventInjector,
-        fileAccess: FileAccessProvider
+        fileAccess: FileAccessProvider,
+        @ApplicationContext context: Context
     ): AgentWorkflow {
         return StatefulAgentWorkflow(
             toolRegistry,
@@ -461,7 +462,8 @@ object AgentModule {
             keyRotator,
             agentNotificationCenter,
             eventInjector,
-            fileAccess
+            fileAccess,
+            context
         )
     }
 }
