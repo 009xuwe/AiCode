@@ -7,6 +7,7 @@ import com.aicode.core.watch.FileChangeHub
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import com.aicode.feature.workspace.data.repository.WorkspaceRepository
 import com.aicode.feature.workspace.domain.ProjectAicodeRoot
+import com.aicode.feature.workspace.domain.WorkspacePathMapper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -57,7 +59,8 @@ class PermissionRulesRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val workspaceRepository: WorkspaceRepository,
     private val projectAicodeRoot: ProjectAicodeRoot,
-    private val fileChangeHub: FileChangeHub
+    private val fileChangeHub: FileChangeHub,
+    private val pathMapper: WorkspacePathMapper
 ) {
     private companion object {
         const val TAG = "PermissionRules"
@@ -147,9 +150,10 @@ class PermissionRulesRepository @Inject constructor(
 
     private suspend fun loadFromFile(file: File): List<PermissionRule> =
         withContext(Dispatchers.IO) {
-            if (!file.isFile) return@withContext emptyList()
+            val resolved = pathMapper.resolveHostFile(file)
+            if (!resolved.isFile) return@withContext emptyList()
             runCatching {
-                JSON.decodeFromString<PermissionFile>(file.readText()).toRuleList()
+                JSON.decodeFromString<PermissionFile>(resolved.readText()).toRuleList()
             }.getOrElse {
                 FileLogger.w(TAG, "读取 ${file.path} 失败: ${it.message}")
                 emptyList()
@@ -157,8 +161,12 @@ class PermissionRulesRepository @Inject constructor(
         }
 
     private fun writeToFile(file: File, rules: List<PermissionRule>) {
-        file.parentFile?.mkdirs()
-        file.writeText(JSON.encodeToString(PermissionFile.serializer(), rules.toPermissionFile()))
+        val resolved = pathMapper.resolveHostFile(file)
+        val parent = resolved.parentFile
+        if (parent != null && !parent.isDirectory && !parent.mkdirs() && !parent.isDirectory) {
+            throw IOException("Cannot create permissions directory: ${parent.absolutePath}")
+        }
+        resolved.writeText(JSON.encodeToString(PermissionFile.serializer(), rules.toPermissionFile()))
     }
 
     // ── 公共 API ────────────────────────────────────────────────

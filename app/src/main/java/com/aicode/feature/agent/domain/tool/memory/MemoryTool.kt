@@ -1,6 +1,9 @@
 package com.aicode.feature.agent.domain.tool.memory
 
+import android.content.Context
+import com.aicode.R
 import com.aicode.core.util.FileLogger
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.aicode.feature.agent.domain.memory.MemoryEdit
 import com.aicode.feature.agent.domain.memory.MemoryEditResult
 import com.aicode.feature.agent.domain.memory.MemoryRepository
@@ -22,7 +25,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 
 class MemoryTool @Inject constructor(
-    private val memoryRepository: MemoryRepository
+    private val memoryRepository: MemoryRepository,
+    @param:ApplicationContext private val appContext: Context
 ) : AbstractContextualTool() {
     private companion object {
         const val TAG = "MemoryTool"
@@ -78,7 +82,7 @@ class MemoryTool @Inject constructor(
         "description" to ToolParameter(
             name = "description",
             type = ParameterType.STRING,
-            description = "一句话摘要（save 必填，将出现在系统提示词的记忆清单中）。",
+            description = "一句话摘要（save 必填），用于系统提示词中的记忆清单；需要正文时用 read 加载。",
             required = false
         ),
         "content" to ToolParameter(
@@ -158,7 +162,7 @@ class MemoryTool @Inject constructor(
 
         val success = memoryRepository.saveMemory(name, description, content, scope, projectRoot)
         return if (success) {
-            ToolResult.Success(JsonPrimitive("已保存记忆「$name」到 ${scope.name.lowercase()} 作用域，将在下一次会话启动时自动注入摘要。当前会话如需立即使用，请通过 read 操作读取。"))
+            ToolResult.Success(JsonPrimitive(appContext.getString(R.string.tool_memory_saved, name, scope.name.lowercase())))
         } else {
             ToolResult.Error("保存记忆失败，请查看日志。", "SAVE_FAILED")
         }

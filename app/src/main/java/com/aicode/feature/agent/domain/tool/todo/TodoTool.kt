@@ -37,9 +37,7 @@ class TodoTool @Inject constructor(
     }
 
     override val name = "todo"
-    override val description = "用当前完整 items 列表替换会话任务清单。只需提交完整列表，" +
-        "无需 action、todo_id 或单项更新。items 可为空数组表示清空；每项为 " +
-        "{subject, description, status, priority}。status 可为 pending、in_progress、completed。"
+    override val description = "用 items 提交会话任务清单的当前完整快照，替换原清单而非增量更新。传空数组清空清单。"
 
     override val permissionPolicy = ToolPermissionPolicy.AUTO_APPROVE
     override val capabilities = setOf(ToolCapability.MODIFY_TODO_STATE)
@@ -73,7 +71,7 @@ class TodoTool @Inject constructor(
         "items" to ToolParameter(
             name = "items",
             type = ParameterType.ARRAY,
-            description = "当前完整待办列表。传空数组会清空任务清单；每项为含 subject 的对象。",
+            description = "当前完整待办列表，须包含所有要保留的条目；未列出的条目会被移除。每项为含 subject 的对象，可选 description、status、priority。传空数组清空清单。",
             required = true,
             itemsSchema = todoItemSchema
         )

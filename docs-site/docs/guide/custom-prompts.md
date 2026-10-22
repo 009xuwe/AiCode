@@ -172,6 +172,8 @@ App 里的改动与手工放文件完全等价，两种方式可以混用。
 | `agent/subagent-context.md` | 子代理运行期上下文：身份、工作区与时间（按需注入） |
 | `agent/compact-summary.md` | 长对话上下文压缩的提示词 |
 | `agent/title-generator.md` | 会话标题生成的提示词 |
+| `agent/commit-generator.md` | 根据 Git 差异生成 Conventional Commits 提交信息的提示词 |
+| `agent/goal.md` | 目标自主循环：持续推进、完成审计与受阻判断的提示词 |
 | `agent/init.md` | `/init` 命令的指令正文（分析代码库并生成/改进 `AGENTS.md`），可在对话输入框用 `/init` 触发 |
 
 ## 恢复默认

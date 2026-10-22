@@ -1,5 +1,7 @@
 package com.aicode.feature.agent.domain.permission
 
+import android.content.Context
+import com.aicode.R
 import com.aicode.feature.agent.domain.model.AgentMode
 import com.aicode.feature.agent.domain.tool.AgentTool
 import com.aicode.feature.agent.domain.tool.ToolCapability
@@ -25,12 +27,16 @@ import org.junit.Test
  */
 class ToolPermissionPolicyEngineTest {
 
+    private fun appContext(): Context = mockk {
+        every { getString(any()) } answers { "resource:${firstArg<Int>()}" }
+    }
+
     private fun engine(vararg rules: PermissionRule, safetyDisabled: Boolean = false): ToolPermissionPolicyEngine {
         val repo = mockk<PermissionRulesRepository>(relaxed = true)
         coEvery { repo.loadEffectiveForCurrentProject() } returns rules.toList()
         val safety = mockk<ToolSafetySettingsRepository>(relaxed = true)
         coEvery { safety.isSafetyInterceptionDisabled() } returns safetyDisabled
-        return ToolPermissionPolicyEngine(repo, safety)
+        return ToolPermissionPolicyEngine(repo, safety, appContext())
     }
 
     private fun tool(vararg caps: ToolCapability): AgentTool {
@@ -51,7 +57,7 @@ class ToolPermissionPolicyEngineTest {
         val e = engine()
         val r = e.evaluate(tool(ToolCapability.WRITE_WORKSPACE), "writeFile", emptyMap(), AgentMode.PLAN)
         assertEquals(ToolPermissionPolicyEngine.Verdict.DENY, r.verdict)
-        assertNotNull(r.denyReason)
+        assertEquals("resource:${R.string.tool_plan_mode_denied}", r.denyReason)
     }
 
     @Test
@@ -471,7 +477,7 @@ class ToolPermissionPolicyEngineTest {
     fun remember_dedupesAndAddsEach() = runTest {
         val repo = mockk<PermissionRulesRepository>(relaxed = true)
         coEvery { repo.add(any(), any()) } just runs
-        val e = ToolPermissionPolicyEngine(repo, mockk(relaxed = true))
+        val e = ToolPermissionPolicyEngine(repo, mockk(relaxed = true), appContext())
 
         e.remember("Bash", listOf("git pull", "git pull", "ls"), PermissionScope.PROJECT)
 

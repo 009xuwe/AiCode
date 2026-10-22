@@ -9,6 +9,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
+import java.nio.file.FileSystemLoopException
+import java.nio.file.Files
+import java.util.ArrayDeque
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -101,6 +104,42 @@ class WorkspacePathMapper @Inject constructor(
                 ?: if (p.startsWith("/")) File(rootfsRoot(), p.removePrefix("/")) else File(root, p)
         }
         return file
+    }
+
+    fun resolveFile(path: String, followFinalLink: Boolean = true): File {
+        val expanded = pathHomeResolver.expandHome(path.trim())
+        val absolute = if (expanded.startsWith("/")) expanded else "${resolvedContainerRoot()}/$expanded"
+        val pending = ArrayDeque(absolute.split('/').filter { it.isNotEmpty() })
+        var current = "/"
+        var links = 0
+        while (pending.isNotEmpty()) {
+            val part = pending.removeFirst()
+            when (part) {
+                "." -> continue
+                ".." -> {
+                    current = current.substringBeforeLast('/', "").ifEmpty { "/" }
+                    continue
+                }
+            }
+            val candidate = current.trimEnd('/') + "/" + part
+            val file = toHostFile(candidate)
+            if ((followFinalLink || pending.isNotEmpty()) && Files.isSymbolicLink(file.toPath())) {
+                if (++links > 40) throw FileSystemLoopException(path)
+                val target = Files.readSymbolicLink(file.toPath()).toString()
+                if (target.startsWith("/")) current = "/"
+                // 先解析链接目标，再处理后续路径，避免提前归一化 .. 改变链接语义。
+                target.split('/').filter { it.isNotEmpty() }.asReversed().forEach(pending::addFirst)
+            } else {
+                current = candidate
+            }
+        }
+        return toHostFile(current)
+    }
+
+    fun resolveHostFile(file: File, followFinalLink: Boolean = true): File {
+        val path = toContainerPath(file.absolutePath)
+        if (path == file.absolutePath) return file
+        return resolveFile(path, followFinalLink)
     }
 
     /**
