@@ -173,6 +173,45 @@ class AgentDefinitionTest {
         assertEquals(listOf("Bash"), def(allowed = listOf("bash")).filterToolNames(allTools))
     }
 
+    /** 默认继承全量工具，三种能力全为「是」。 */
+    @Test
+    fun capability_fullInheritanceAllowsEverything() {
+        val summary = def().capabilitySummary()
+
+        assertEquals("文件读取 是 · 文件修改 是 · 执行命令 是", summary)
+    }
+
+    /** 白名单只给读工具：主代理据此知道不能派修改任务。 */
+    @Test
+    fun capability_readOnlyAllowlistMarksWriteAndExecNo() {
+        val summary = def(allowed = listOf("readFile", "list", "search", "viewImage")).capabilitySummary()
+
+        assertEquals("文件读取 是 · 文件修改 否 · 执行命令 否", summary)
+    }
+
+    @Test
+    fun capability_denylistRemovesExec() {
+        val summary = def(disallowed = listOf("Bash", "terminal", "Shizuku")).capabilitySummary()
+
+        assertEquals("文件读取 是 · 文件修改 是 · 执行命令 否", summary)
+    }
+
+    /** 摘要与工具裁剪同源：黑名单优先，允许名单里也写着 Bash 也照样是「否」。 */
+    @Test
+    fun capability_denyWinsOverAllowLikeFilter() {
+        val definition = def(allowed = listOf("readFile", "Bash"), disallowed = listOf("Bash"))
+
+        assertEquals("文件读取 是 · 文件修改 否 · 执行命令 否", definition.capabilitySummary())
+    }
+
+    /** 通配黑名单只作用于它匹配到的工具，不应误伤内置的读写与命令能力。 */
+    @Test
+    fun capability_wildcardDenyApplies() {
+        val summary = def(disallowed = listOf("mcp__*")).capabilitySummary()
+
+        assertEquals("文件读取 是 · 文件修改 是 · 执行命令 是", summary)
+    }
+
     /** 同名定义项目级覆盖全局，结果按名称排序。 */
     @Test
     fun mergeAll_projectOverridesGlobal() {

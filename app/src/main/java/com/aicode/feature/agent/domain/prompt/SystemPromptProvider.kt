@@ -111,8 +111,11 @@ class SystemPromptProvider @Inject constructor(
                 return null
             }
 
+            // 每行除「名称: 用途」外再标注读/写/命令能力，避免主代理把写任务派给只读子代理。
             val list = entries.joinToString("\n") { entry ->
-                "- ${entry.definition.name}: ${entry.definition.description.ifBlank { "（无描述）" }}"
+                val definition = entry.definition
+                "- ${definition.name}: ${definition.description.ifBlank { "（无描述）" }}" +
+                    "｜${definition.capabilitySummary()}"
             }
             val content = list
             cachedByKey[key] = content
