@@ -67,6 +67,8 @@ import com.aicode.core.theme.AppThemePreset
 import com.aicode.core.theme.Spacing
 import com.aicode.core.theme.isDynamicColorSupported
 import com.aicode.core.theme.semanticColors
+import com.aicode.core.ui.ListSelectionState
+import com.aicode.core.ui.SelectionToggleAction
 import com.aicode.core.ui.pageEnter
 import com.aicode.core.ui.pageExit
 import com.aicode.core.util.LogLevel
@@ -292,6 +294,11 @@ fun SettingsScreen(
 
     var section by remember { mutableStateOf(SettingsSection.Menu) }
     var logReturnSection by remember { mutableStateOf(SettingsSection.Menu) }
+    // 各列表页的多选状态：顶栏「多选」开关在本页 Scaffold 里，所以状态必须提到这里统一持有。
+    // 用普通 map（非 snapshot）新建容器，避免在组合期写快照状态；Compose 状态在 ListSelectionState 内部。
+    val listSelections = remember { mutableMapOf<SettingsSection, ListSelectionState>() }
+    fun selectionFor(target: SettingsSection): ListSelectionState =
+        listSelections.getOrPut(target) { ListSelectionState() }
     var editingProvider by remember { mutableStateOf<AIProviderConfig?>(null) }
     var showAddProviderSheet by remember { mutableStateOf(false) }
     var providerPresetPrefill by remember { mutableStateOf<ProviderPreset?>(null) }
@@ -680,16 +687,24 @@ fun SettingsScreen(
                 },
                 actions = {
                     when (current) {
-                        SettingsSection.Providers -> IconButton(
-                            onClick = {
-                                providerPresetPrefill = null
-                                showAddProviderSheet = true
-                            },
-                            modifier = Modifier.onboardingTarget(OnboardingStep.PROVIDER_ADD)
-                        ) {
-                            Icon(FeatherIcons.Plus, contentDescription = stringResource(R.string.settings_add_provider))
+                        SettingsSection.Providers -> {
+                            if (providers.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.Providers))
+                            }
+                            IconButton(
+                                onClick = {
+                                    providerPresetPrefill = null
+                                    showAddProviderSheet = true
+                                },
+                                modifier = Modifier.onboardingTarget(OnboardingStep.PROVIDER_ADD)
+                            ) {
+                                Icon(FeatherIcons.Plus, contentDescription = stringResource(R.string.settings_add_provider))
+                            }
                         }
                         SettingsSection.Mcp -> {
+                            if (mcpEntries.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.Mcp))
+                            }
                             IconButton(onClick = { viewModel.reloadMcp() }) {
                                 if (mcpReloading) {
                                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -733,6 +748,9 @@ fun SettingsScreen(
                             }
                         }
                         SettingsSection.ContainerDownloads -> {
+                            if (downloadedImages.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.ContainerDownloads))
+                            }
                             IconButton(onClick = { showImageSourceSheet = true }) {
                                 Icon(
                                     FeatherIcons.Globe,
@@ -742,15 +760,20 @@ fun SettingsScreen(
                                 )
                             }
                         }
-                        SettingsSection.Skills -> IconButton(onClick = {
-                            showSkillAddSheet = true
-                        }) {
-                            Icon(
-                                FeatherIcons.Plus,
-                                contentDescription = stringResource(R.string.skills_add),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                                modifier = Modifier.size(22.dp)
-                            )
+                        SettingsSection.Skills -> {
+                            if (skills.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.Skills))
+                            }
+                            IconButton(onClick = {
+                                showSkillAddSheet = true
+                            }) {
+                                Icon(
+                                    FeatherIcons.Plus,
+                                    contentDescription = stringResource(R.string.skills_add),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                         SettingsSection.SkillDetail -> selectedSkill?.let { entry ->
                             IconButton(onClick = {
@@ -766,17 +789,22 @@ fun SettingsScreen(
                                 )
                             }
                         }
-                        SettingsSection.SubAgents -> IconButton(onClick = {
-                            editingSubAgent = null
-                            subAgentEditorReturn = SettingsSection.SubAgents
-                            section = SettingsSection.SubAgentEditor
-                        }) {
-                            Icon(
-                                FeatherIcons.Plus,
-                                contentDescription = stringResource(R.string.subagent_add),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                                modifier = Modifier.size(22.dp)
-                            )
+                        SettingsSection.SubAgents -> {
+                            if (subAgents.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.SubAgents))
+                            }
+                            IconButton(onClick = {
+                                editingSubAgent = null
+                                subAgentEditorReturn = SettingsSection.SubAgents
+                                section = SettingsSection.SubAgentEditor
+                            }) {
+                                Icon(
+                                    FeatherIcons.Plus,
+                                    contentDescription = stringResource(R.string.subagent_add),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                         SettingsSection.SubAgentDetail -> selectedSubAgent?.let { entry ->
                             IconButton(onClick = {
@@ -808,6 +836,8 @@ fun SettingsScreen(
                             }
                         }
                         SettingsSection.Prompts -> {
+                            // 多选：批量删除自定义提示词（内置来源的片段不可选）。
+                            SelectionToggleAction(selectionFor(SettingsSection.Prompts))
                             // 帮助入口只保留这一个：原来「+」弹层里的帮助项与它重复，弹层已去掉。
                             IconButton(onClick = { showPromptsAnnouncement = true }) {
                                 Icon(
@@ -904,6 +934,7 @@ fun SettingsScreen(
                 )
                 SettingsSection.Providers -> ProvidersSection(
                     providers = providers,
+                    selection = selectionFor(SettingsSection.Providers),
                     onEdit = {
                         editingProvider = it
                         section = SettingsSection.ProviderEditor
@@ -911,7 +942,9 @@ fun SettingsScreen(
                     onDelete = { viewModel.deleteProvider(it.id) },
                     onReorder = { fromIndex, toIndex ->
                         viewModel.reorderProviders(fromIndex, toIndex)
-                    }
+                    },
+                    onBatchDelete = { ids -> viewModel.deleteProviders(ids) },
+                    onBatchSetEnabled = { ids, enabled -> viewModel.setProvidersEnabled(ids, enabled) }
                 )
                 SettingsSection.DefaultModels -> DefaultModelsSection(
                     providers = providers,
@@ -938,21 +971,34 @@ fun SettingsScreen(
                     entries = mcpEntries,
                     statuses = mcpStatuses,
                     reloading = mcpReloading,
+                    selection = selectionFor(SettingsSection.Mcp),
                     onReload = { viewModel.reloadMcp() },
                     onToggle = { name, enabled, scope -> viewModel.setMcpServerEnabled(name, enabled, scope) },
                     onEdit = {
                         editingMcp = it
                         showMcpDialog = true
                     },
-                    onDelete = { name, scope -> viewModel.deleteMcpServer(name, scope) }
+                    onDelete = { name, scope -> viewModel.deleteMcpServer(name, scope) },
+                    onBatchDelete = { targets -> viewModel.deleteMcpServers(targets) },
+                    onBatchSetEnabled = { targets, enabled -> viewModel.setMcpServersEnabled(targets, enabled) },
+                    onBatchReconnect = { names -> viewModel.reconnectMcpServers(names) }
                 )
                 SettingsSection.Skills -> SkillsSection(
                     projectName = currentProjectName,
                     entries = skills,
+                    selection = selectionFor(SettingsSection.Skills),
+                    deletingInProgress = skillDeleting.isNotEmpty(),
                     onDelete = { skillToDelete = it },
                     onOpenDetail = {
+                        selectionFor(SettingsSection.Skills).exit()
                         selectedSkill = it
                         section = SettingsSection.SkillDetail
+                    },
+                    onBatchDelete = { targets ->
+                        viewModel.deleteSkills(targets.map { it.name to it.scope })
+                    },
+                    onBatchSetEnabled = { targets, enabled ->
+                        viewModel.setSkillsEnabled(targets.map { it.name to it.scope }, enabled)
                     }
                 )
                 SettingsSection.Prompts -> {
@@ -962,13 +1008,16 @@ fun SettingsScreen(
                     LaunchedEffect(Unit) { promptsViewModel.refresh() }
                     PromptsSection(
                         state = promptsState,
+                        selection = selectionFor(SettingsSection.Prompts),
                         onOpenFragment = { fragment ->
+                            selectionFor(SettingsSection.Prompts).exit()
                             selectedPrompt = fragment
                             section = SettingsSection.PromptDetail
                         },
                         onDeleteFragment = promptsViewModel::deleteFragment,
                         onReorder = promptsViewModel::reorderFragments,
-                        onToggleBuiltinDisabled = promptsViewModel::setBuiltinDisabled
+                        onToggleBuiltinDisabled = promptsViewModel::setBuiltinDisabled,
+                        onBatchDeleteFragments = promptsViewModel::deleteFragments
                     )
                     if (showResetPrompts) {
                         AlertDialog(
@@ -1014,10 +1063,19 @@ fun SettingsScreen(
                 SettingsSection.SubAgents -> SubAgentsSection(
                     projectName = currentProjectName,
                     entries = subAgents,
+                    selection = selectionFor(SettingsSection.SubAgents),
+                    deletingInProgress = subAgentDeleting.isNotEmpty(),
                     onDelete = { subAgentToDelete = it },
                     onOpenDetail = {
+                        selectionFor(SettingsSection.SubAgents).exit()
                         selectedSubAgent = it
                         section = SettingsSection.SubAgentDetail
+                    },
+                    onBatchDelete = { targets ->
+                        viewModel.deleteSubAgents(targets.map { it.name to it.scope })
+                    },
+                    onBatchSetEnabled = { targets, enabled ->
+                        viewModel.setSubAgentsEnabled(targets.map { it.name to it.scope }, enabled)
                     }
                 )
                 SettingsSection.SubAgentDetail -> selectedSubAgent?.let { entry ->
@@ -1064,10 +1122,12 @@ fun SettingsScreen(
                     downloadedImages = downloadedImages,
                     sourceUnavailableIds = sourceUnavailableIds,
                     selectedSourceName = viewModel.sourceDisplayName(selectedImageSource, languageTag),
+                    selection = selectionFor(SettingsSection.ContainerDownloads),
                     onDownload = { entry -> viewModel.startContainerImageDownload(entry, selectedImageSource) },
                     onCancel = { viewModel.cancelContainerImageDownload() },
                     onImport = { entryId, fileUri -> viewModel.importDownloadedImage(entryId, fileUri) },
-                    onDelete = { entryId -> viewModel.deleteDownloadedImage(entryId) }
+                    onDelete = { entryId -> viewModel.deleteDownloadedImage(entryId) },
+                    onBatchDelete = { ids -> viewModel.deleteDownloadedImages(ids) }
                 )
                 SettingsSection.Proxy -> ProxySection(
                     config = proxyConfig,
@@ -1336,7 +1396,7 @@ fun SettingsScreen(
     }
 
     skillToDelete?.let { target ->
-        val deleting = skillDeleting == target.name
+        val deleting = target.name in skillDeleting
         // 删除进行中保持弹窗（转圈），完成后才关闭，避免无反馈地“突然消失”。
         var deleteStarted by remember(target) { mutableStateOf(false) }
         LaunchedEffect(deleteStarted, deleting) {
@@ -1372,7 +1432,7 @@ fun SettingsScreen(
     SkillImportResultDialog(state = skillImportState, onDismiss = { viewModel.clearSkillImportState() })
 
     subAgentToDelete?.let { target ->
-        val deleting = subAgentDeleting == target.name
+        val deleting = target.name in subAgentDeleting
         var deleteStarted by remember(target) { mutableStateOf(false) }
         LaunchedEffect(deleteStarted, deleting) {
             if (deleteStarted && !deleting) subAgentToDelete = null

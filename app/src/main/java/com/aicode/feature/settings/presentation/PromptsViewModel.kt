@@ -83,10 +83,19 @@ class PromptsViewModel @Inject constructor(
     }
 
     /** 删除某编号的覆盖，自动回退到下一层。 */
-    fun deleteFragment(number: Int) {
+    fun deleteFragment(number: Int) = deleteFragments(listOf(number))
+
+    /**
+     * 批量删除（列表多选批量操作）：一次 IO 里删完再刷新一次列表。
+     * 逐条调 [deleteFragment] 会各自触发一轮全量重扫，编号多时列表会来回跳。
+     */
+    fun deleteFragments(numbers: List<Int>) {
+        if (numbers.isEmpty()) return
         viewModelScope.launch {
             val projectRoot = workspaceRepository.currentPath()
-            withContext(Dispatchers.IO) { catalog.deleteOverride(number, projectRoot) }
+            withContext(Dispatchers.IO) {
+                numbers.forEach { catalog.deleteOverride(it, projectRoot) }
+            }
             refresh()
         }
     }
