@@ -61,6 +61,7 @@ import com.aicode.feature.agent.domain.subagent.SubAgentEvent
 import com.aicode.feature.agent.domain.subagent.SubAgentEventBus
 import com.aicode.core.watch.FileChangeHub
 import com.aicode.core.watch.asDirtySignal
+import com.aicode.feature.agent.domain.subagent.SubAgentDigester
 import com.aicode.feature.agent.domain.subagent.SubAgentEventType
 import com.aicode.feature.agent.domain.workflow.AgentWorkflow
 import com.aicode.feature.terminal.domain.TabFinishedEvent
@@ -1357,11 +1358,23 @@ class AIAgentViewModel @Inject constructor(
     /**
      * 子代理完成/失败通知：父会话忙碌时先入队（由本轮内下一批工具结果搭车送达，见
      * [com.aicode.feature.agent.domain.workflow.StatefulAgentWorkflow]），空闲时立即注入一条系统通知消息触发新一轮。
-     * 父代理据此得知子代理结束，可 task(action="read") 取回结果。与 terminal 后台通知同机制。
+     * 父代理据此得知子代理结束；正常完成时结果摘要已随通知送达，需完整报告再 `task(action="read")`。
+     * 与 terminal 后台通知同机制。
      */
     private fun enqueueSubAgentNotification(event: SubAgentEvent) {
         viewModelScope.launch {
             val title = sessionUseCase.getSessionById(event.subSessionId)?.title ?: "子代理"
+            // 摘要只在正常完成时提炼：失败/终止带的是错误原因（detail），再抽正文只会误导。
+            // 读整段消息 + 解析 toolArgs 放 IO 线程：长会话的子代理消息量大，不该占主线程。
+            val digest = if (event.type == SubAgentEventType.COMPLETED) {
+                withContext(Dispatchers.IO) {
+                    runCatching { SubAgentDigester.digest(agentMessageDao.getMessagesBySessionOnce(event.subSessionId)) }
+                        .onFailure { FileLogger.w(TAG, "子代理结果摘要提取失败: ${event.subSessionId}", it) }
+                        .getOrNull()
+                }
+            } else {
+                null
+            }
             notifyParentSubAgentFinished(
                 parentSessionId = event.parentSessionId,
                 subSessionId = event.subSessionId,
@@ -1371,7 +1384,9 @@ class AIAgentViewModel @Inject constructor(
                 } else {
                     NotificationOutcome.COMPLETED
                 },
-                detail = event.detail.takeIf { it.isNotBlank() && event.type == SubAgentEventType.FAILED }
+                detail = event.detail.takeIf { it.isNotBlank() && event.type == SubAgentEventType.FAILED },
+                resultExcerpt = digest?.excerpt,
+                changedFiles = digest?.changedFiles.orEmpty()
             )
         }
     }
@@ -1430,20 +1445,25 @@ class AIAgentViewModel @Inject constructor(
     /**
      * 向父会话投递一条子代理结束通知：父会话忙碌时入队搭车，空闲时立即注入触发新一轮。
      * 失败与被终止都要带上原因，否则父代理只知道「没成」，还得再 read 一次才可能拿到线索。
+     * 正常完成时附带结果摘要与改动文件，省掉父代理那一次 read。
      */
     private suspend fun notifyParentSubAgentFinished(
         parentSessionId: String,
         subSessionId: String,
         title: String,
         outcome: NotificationOutcome,
-        detail: String?
+        detail: String?,
+        resultExcerpt: String? = null,
+        changedFiles: List<String> = emptyList()
     ) {
         val item = PendingNotification(
             kind = AgentNotificationKind.SUBAGENT,
             sourceId = subSessionId,
             title = title,
             outcome = outcome,
-            detail = detail
+            detail = detail,
+            resultExcerpt = resultExcerpt,
+            changedFiles = changedFiles
         )
         deliverSystemEvent(parentSessionId, item)
     }

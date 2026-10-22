@@ -40,6 +40,16 @@ class AgentNotificationFormatterTest {
         detail = "用户在界面上手动停止了这个子代理，任务未完成。"
     )
 
+    /** 完成通知自带摘要与改动文件：父代理据此推进，无需再 read 一次。 */
+    private val digestSubAgent = PendingNotification(
+        kind = AgentNotificationKind.SUBAGENT,
+        sourceId = "sub-3",
+        title = "修复登录 bug",
+        outcome = NotificationOutcome.COMPLETED,
+        resultExcerpt = "已修复 <登录> 空指针 & 补了单测",
+        changedFiles = listOf("~/workspace/A.kt", "~/workspace/B.kt")
+    )
+
     private val modeChange = PendingNotification(
         kind = AgentNotificationKind.MODE_CHANGE,
         sourceId = "user",
@@ -87,6 +97,41 @@ class AgentNotificationFormatterTest {
         assertTrue(text.contains("<subagent-id>sub-1</subagent-id>"))
         assertTrue(text.contains("<summary>子代理「调研缓存实现」已执行完成</summary>"))
         assertTrue(text.contains("task(action=\"read\", id=\"sub-1\")"))
+    }
+
+    /** 带摘要的完成通知：摘要与改动文件都要在，且提示从「去读」改成「通常无需再读」。 */
+    @Test
+    fun message_subAgentWithDigestCarriesExcerptAndFiles() {
+        val text = AgentNotificationFormatter.buildMessage(listOf(digestSubAgent))
+
+        assertTrue(text.contains("<changed-files>~/workspace/A.kt, ~/workspace/B.kt</changed-files>"))
+        assertTrue(text.contains("<result-excerpt>已修复 &lt;登录&gt; 空指针 &amp; 补了单测</result-excerpt>"))
+        assertFalse(text.contains("<登录>"))
+        assertTrue(text.contains("结果摘要已随通知给出"))
+        // 完整报告仍可读，提示保留 task(read) 这条兜底路径
+        assertTrue(text.contains("task(action=\"read\", id=\"sub-3\")"))
+    }
+
+    @Test
+    fun jsonArray_subAgentWithDigestCarriesFields() {
+        val obj = AgentNotificationFormatter.buildJsonArray(listOf(digestSubAgent))[0] as JsonObject
+
+        assertEquals("修复登录 bug", (obj["subagent_title"] as JsonPrimitive).content)
+        assertEquals("已修复 <登录> 空指针 & 补了单测", (obj["result_excerpt"] as JsonPrimitive).content)
+        val files = obj["changed_files"] as kotlinx.serialization.json.JsonArray
+        assertEquals(2, files.size)
+        assertEquals("~/workspace/A.kt", (files[0] as JsonPrimitive).content)
+        assertTrue((obj["hint"] as JsonPrimitive).content.contains("结果摘要已随通知给出"))
+    }
+
+    /** 无摘要时不得凭空造出空字段，提示保持原有「去读一次」的措辞。 */
+    @Test
+    fun jsonArray_subAgentWithoutDigestOmitsFields() {
+        val obj = AgentNotificationFormatter.buildJsonArray(listOf(subAgent))[0] as JsonObject
+
+        assertEquals(null, obj["result_excerpt"])
+        assertEquals(null, obj["changed_files"])
+        assertTrue((obj["hint"] as JsonPrimitive).content.contains("读取子代理的最后输出"))
     }
 
     @Test
