@@ -7,6 +7,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.aicode.feature.agent.data.local.dao.AgentMessageDao
 import com.aicode.feature.agent.data.local.dao.ChatSessionDao
 import com.aicode.feature.agent.domain.model.AgentContext
+import com.aicode.feature.agent.domain.model.AgentMode
 import com.aicode.feature.agent.domain.model.ReasoningEffort
 import com.aicode.feature.agent.domain.session.SessionUseCase
 import com.aicode.feature.agent.domain.subagent.AgentDefinition
@@ -202,7 +203,17 @@ class TaskTool @Inject constructor(
                 put("id", subSessionId)
                 put("state", "running")
                 definition?.let { put("agent", it.name) }
-                put("message", "子代理已创建并开始执行，任务完成后会收到通知。可用 task(action=\"read\", id=...) 读取输出，task(action=\"stop\", id=...) 主动关闭。")
+                // 子会话继承父会话模式；PLAN 下写/命令一律被拦，提前说清，省得子代理白跑一轮。
+                val writeCapped = context.mode == AgentMode.PLAN && (definition?.canModifyOrExecute() ?: true)
+                if (writeCapped) {
+                    put("warning", appContext.getString(R.string.tool_subagent_plan_readonly_warning))
+                }
+                put("mode", context.mode.name)
+                put(
+                    "message",
+                    "子代理已创建并开始执行，任务完成后会收到通知。可用 task(action=\"read\", id=...) 读取输出，" +
+                        "task(action=\"stop\", id=...) 主动关闭。"
+                )
             }
         )
     }

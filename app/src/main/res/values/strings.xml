@@ -36,6 +36,7 @@
     <string name="tool_mcp_invalid_name">MCP 服务器名称只能包含 ASCII 字母、数字、下划线和连字符，当前为：%1$s。</string>
     <string name="tool_memory_saved">已保存记忆「%1$s」（%2$s）。后续会话可看到摘要，需要正文时用 read 读取。</string>
     <string name="tool_subagent_message_delivered">消息已投递。运行中的子代理会尽快收到，已结束的会继续处理消息。</string>
+    <string name="tool_subagent_plan_readonly_warning">当前为 PLAN（计划）模式：子代理继承只读权限，文件修改与命令执行会被模式拦截。如确需实施，请先申请退出 PLAN 再派发。</string>
     <string name="tool_browser_screenshot_failed">暂时无法截图。可稍后重试，或用 getText/getHtml 读取页面内容。</string>
     <string name="tool_browser_condition_met">条件已满足。</string>
     <string name="tool_browser_wait_timeout">等待超时，条件尚未满足。</string>

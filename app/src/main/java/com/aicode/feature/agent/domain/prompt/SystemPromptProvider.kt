@@ -6,6 +6,7 @@ import com.aicode.feature.agent.domain.container.ContainerInstaller
 import com.aicode.feature.agent.domain.memory.MemoryRepository
 import com.aicode.feature.agent.domain.memory.MemoryScope
 import com.aicode.feature.agent.domain.model.AgentContext
+import com.aicode.feature.agent.domain.model.AgentMode
 import com.aicode.feature.agent.domain.model.GoalStatus
 import com.aicode.feature.agent.domain.skill.SkillRepository
 import com.aicode.feature.agent.domain.subagent.AgentDefinition
@@ -97,7 +98,8 @@ class SystemPromptProvider @Inject constructor(
         private val cachedByKey = ConcurrentHashMap<SourceCacheKey, String>()
 
         override fun build(ctx: AgentContext): String? {
-            val key = SourceCacheKey(ctx.sessionId, ctx.projectRoot)
+            // key 里带 mode：能力摘要随模式变化（PLAN 下写/命令不可用），切换模式必须重建缓存。
+            val key = SourceCacheKey(ctx.sessionId, ctx.projectRoot, ctx.mode)
             val cached = cachedByKey[key]
             if (cached != null) return cached.ifEmpty { null }
             val entries = try {
@@ -112,10 +114,11 @@ class SystemPromptProvider @Inject constructor(
             }
 
             // 每行除「名称: 用途」外再标注读/写/命令能力，避免主代理把写任务派给只读子代理。
+            // 按当前会话模式计算：PLAN 下子代理继承只读，能力要如实显示，否则主代理会照摘要派错活。
             val list = entries.joinToString("\n") { entry ->
                 val definition = entry.definition
                 "- ${definition.name}: ${definition.description.ifBlank { "（无描述）" }}" +
-                    "｜${definition.capabilitySummary()}"
+                    "｜${definition.capabilitySummary(ctx.mode)}"
             }
             val content = list
             cachedByKey[key] = content
@@ -223,8 +226,16 @@ class SystemPromptProvider @Inject constructor(
         }
     }
 
-    /** 会话级缓存 key：同一会话同一工作区共享一份快照，避免每轮重扫磁盘导致 system prompt 变化。 */
-    private data class SourceCacheKey(val sessionId: String?, val projectRoot: String)
+    /**
+     * 会话级缓存 key：同一会话同一工作区共享一份快照，避免每轮重扫磁盘导致 system prompt 变化。
+     *
+     * [mode] 只有内容依赖模式的来源才传（子代理清单的能力摘要），其余来源留 null 以免白白碎片化缓存。
+     */
+    private data class SourceCacheKey(
+        val sessionId: String?,
+        val projectRoot: String,
+        val mode: AgentMode? = null
+    )
 
     private val staticRuleSource = StaticRuleSource()
     private val subAgentBaseSource = SubAgentBaseSource()

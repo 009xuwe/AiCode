@@ -89,11 +89,23 @@ data class AgentDefinition(
      *
      * 主代理看不到子代理的工具集，容易把修改任务派给只读子代理、让没有 Shell 的子代理跑验证命令，
      * 白跑一整轮才发现。摘要随「可用子代理」清单注入，判定与 [filterToolNames] 同源。
+     *
+     * @param mode 当前会话模式。传给 PLAN 时，写与命令一律显示为「否（PLAN 只读）」——
+     *   子代理继承父会话模式，此时定义里配了写工具也用不上，不提前说清就会派错活。
      */
-    fun capabilitySummary(): String {
-        fun flag(group: Set<String>): String = if (group.any { allowsTool(it) }) "是" else "否"
-        return "文件读取 ${flag(READ_TOOLS)} · 文件修改 ${flag(WRITE_TOOLS)} · 执行命令 ${flag(EXEC_TOOLS)}"
+    fun capabilitySummary(mode: AgentMode? = null): String {
+        val planReadOnly = mode == AgentMode.PLAN
+        fun flag(group: Set<String>, blockedByMode: Boolean = false): String = when {
+            blockedByMode && planReadOnly -> "否（PLAN 只读）"
+            group.any { allowsTool(it) } -> "是"
+            else -> "否"
+        }
+        return "文件读取 ${flag(READ_TOOLS)} · 文件修改 ${flag(WRITE_TOOLS, blockedByMode = true)}" +
+            " · 执行命令 ${flag(EXEC_TOOLS, blockedByMode = true)}"
     }
+
+    /** 该定义（不叠加模式约束）是否具备写文件或执行命令的能力。 */
+    fun canModifyOrExecute(): Boolean = (WRITE_TOOLS + EXEC_TOOLS).any { allowsTool(it) }
 
     private fun matches(pattern: String, toolName: String): Boolean {
         val p = pattern.trim()
