@@ -32,7 +32,15 @@ import androidx.compose.ui.unit.dp
 import com.aicode.R
 import com.aicode.core.theme.Radius
 import com.aicode.core.theme.Spacing
+import com.aicode.core.ui.AppSwitch
+import com.aicode.feature.agent.domain.model.ReasoningCapability
 import com.aicode.feature.agent.domain.model.ReasoningEffort
+import com.aicode.feature.agent.domain.model.ReasoningPlan
+import com.aicode.feature.agent.domain.provider.ReasoningProtocol
+import com.aicode.feature.agent.domain.provider.ReasoningResolver
+import com.aicode.feature.agent.domain.provider.preferredOnLevel
+import com.aicode.feature.agent.domain.provider.selectableLevelsForUi
+import com.aicode.feature.agent.domain.provider.showsThinkingToggle
 import com.aicode.feature.onboarding.domain.OnboardingStep
 import com.aicode.feature.settings.domain.model.AIProviderConfig
 import com.aicode.feature.settings.domain.model.ModelMetadata
@@ -83,18 +91,29 @@ internal fun ModelIconButton(
 }
 
 /**
- * 思考强度选择器：独立图标按钮，点击弹出底部档位选择。
- * [availableEfforts] 由调用方按当前模型元数据生成，元数据未命中时给出全部档位。
+ * 思考强度选择器：图标按钮 → 底部弹层，「思考」总开关 + 只列模型真实支持的档位。
+ *
+ * 档位集合与「实际生效」全部来自 [ReasoningResolver]，与请求侧完全同源：
+ * 最高只到「高」的模型不会再列出「最高」，思考恒开 / 端点不认「关闭」时也会明确提示。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ReasoningEffortSelector(
     effort: ReasoningEffort,
-    availableEfforts: List<ReasoningEffort>,
+    capability: ReasoningCapability,
+    protocol: ReasoningProtocol,
+    model: String,
     onChange: (ReasoningEffort) -> Unit,
     enabled: Boolean
 ) {
     var showSheet by remember { mutableStateOf(false) }
+    // 与实际请求同源：这里算出的「实际生效档位」就是适配器接下来会发出的档位。
+    val plan = remember(effort, capability, protocol, model) {
+        ReasoningResolver.plan(protocol, model, effort.apiValue, capability)
+    }
+    val levels = remember(capability) { capability.selectableLevelsForUi() }
+    val thinkingOn = effort != ReasoningEffort.NONE
+
     Box {
         IconButton(
             onClick = { showSheet = true },
@@ -104,7 +123,11 @@ internal fun ReasoningEffortSelector(
             Icon(
                 FeatherIcons.Zap,
                 contentDescription = stringResource(effort.labelRes()),
-                tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                tint = when {
+                    !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    thinkingOn -> MaterialTheme.colorScheme.onSurfaceVariant
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                },
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -123,20 +146,50 @@ internal fun ReasoningEffortSelector(
                     .padding(horizontal = Spacing.lg)
                     .padding(bottom = Spacing.xl)
             ) {
-                Text(
-                    text = stringResource(com.aicode.R.string.chat_reasoning_effort),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = Spacing.sm)
-                )
-                availableEfforts.forEach { e ->
-                    val selected = e == effort
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(com.aicode.R.string.chat_reasoning_effort),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (capability.showsThinkingToggle()) {
+                        Text(
+                            text = stringResource(R.string.chat_reasoning_toggle),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(Spacing.sm))
+                        AppSwitch(
+                            checked = thinkingOn,
+                            enabled = enabled,
+                            onCheckedChange = { on ->
+                                onChange(
+                                    if (on) {
+                                        capability.preferredOnLevel() ?: ReasoningEffort.MEDIUM
+                                    } else {
+                                        ReasoningEffort.NONE
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
+                ReasoningHintLines(plan = plan, capability = capability)
+
+                levels.forEach { e ->
+                    val selected = thinkingOn && e == effort
+                    // 想关却关不掉时，把「实际会发的档位」标出来，避免用户以为思考真的停了。
+                    val effectiveWhenOff = !thinkingOn &&
+                        plan.reason == ReasoningPlan.Reason.CANNOT_DISABLE &&
+                        plan.effectiveLevel == e
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.sm))
-                            .clickable {
+                            .clickable(enabled = enabled) {
                                 showSheet = false
                                 onChange(e)
                             }
@@ -158,7 +211,23 @@ internal fun ReasoningEffortSelector(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (e == capability.defaultLevel) {
+                            Text(
+                                text = stringResource(R.string.chat_reasoning_default_tag),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (effectiveWhenOff) {
+                            Spacer(Modifier.width(Spacing.sm))
+                            Text(
+                                text = stringResource(R.string.chat_reasoning_effective_tag),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         if (selected) {
+                            Spacer(Modifier.width(Spacing.sm))
                             Icon(
                                 FeatherIcons.Check,
                                 contentDescription = null,
@@ -171,6 +240,35 @@ internal fun ReasoningEffortSelector(
             }
         }
     }
+}
+
+/** 弹层顶部的说明行：未识别 / 关不掉 / 被降级 / 端点可能忽略，各自只出现一条。 */
+@Composable
+private fun ReasoningHintLines(plan: ReasoningPlan, capability: ReasoningCapability) {
+    if (!capability.isKnown) {
+        ReasoningHint(stringResource(R.string.chat_reasoning_unknown_hint))
+    }
+    when (plan.reason) {
+        ReasoningPlan.Reason.CANNOT_DISABLE ->
+            ReasoningHint(stringResource(R.string.chat_reasoning_cannot_disable))
+        ReasoningPlan.Reason.ENDPOINT_MAY_IGNORE ->
+            ReasoningHint(stringResource(R.string.chat_reasoning_endpoint_weak))
+        ReasoningPlan.Reason.CLAMPED_DOWN, ReasoningPlan.Reason.CLAMPED_UP ->
+            plan.effectiveLevel?.let {
+                ReasoningHint(stringResource(R.string.chat_reasoning_effective, stringResource(it.labelRes())))
+            }
+        else -> Unit
+    }
+}
+
+@Composable
+private fun ReasoningHint(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = Spacing.sm)
+    )
 }
 
 private fun ReasoningEffort.labelRes(): Int = when (this) {

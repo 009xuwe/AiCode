@@ -411,6 +411,13 @@
     <string name="chat_reasoning_effort_high">高</string>
     <string name="chat_reasoning_effort_xhigh">极高</string>
     <string name="chat_reasoning_effort_max">最高</string>
+    <string name="chat_reasoning_toggle">思考</string>
+    <string name="chat_reasoning_default_tag">默认</string>
+    <string name="chat_reasoning_effective_tag">生效</string>
+    <string name="chat_reasoning_effective">实际生效：%1$s</string>
+    <string name="chat_reasoning_unknown_hint">未识别到该模型支持的档位，所选档位可能不生效</string>
+    <string name="chat_reasoning_cannot_disable">该模型无法关闭思考，已改用最低档</string>
+    <string name="chat_reasoning_endpoint_weak">当前端点可能忽略「关闭」，改用该厂商的新版端点（Responses）才能真关闭</string>
     <string name="chat_open_file_missing">文件不存在或已被移动</string>
     <string name="chat_open_file_unshareable">文件所在位置无法分享给其它应用</string>
     <string name="chat_open_file_no_app">没有可打开该文件的应用</string>

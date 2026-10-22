@@ -91,7 +91,13 @@ Switch to the "Models" tab of the edit page.
 
 Your values take priority; unfilled ones fall back to auto-detected results. If auto-detection can't match the model name, it retries after stripping common suffixes like `-thinking`, `-preview`, `-high` — so most renamed relay models are still recognized.
 
-**Thinking effort**: the lightning icon button above the input box is always available. If the current model's supported levels can be detected, only those are listed; otherwise (model has no level info, or the relay renamed it) all levels are shown — `Off` / `Lowest` / `Low` / `Medium` / `High` / `Highest` / `Max` — and you decide. Some relay models force reasoning on but use non-standard names, and this still lets you adjust manually. The choice is remembered and carried over when a new session uses this model.
+**Thinking effort**: the lightning icon above the input box opens a sheet with a **Thinking** switch at the top (only shown for models that can actually turn thinking off) and, below it, only the levels the model really supports — the provider default is tagged **Default**.
+
+- Pick a level above what the model supports and it clamps to the nearest lower level; the sheet states the outcome, e.g. **Effective: High**.
+- For models that always think, the sheet says so and marks the level that will actually be sent.
+- When the levels can't be detected (relay renamed the model, or a custom model), every level is listed with a "may not take effect" hint.
+
+The choice is remembered and carried over when a new session uses this model. For the per-family support matrix and how to verify a setting really took effect, see [Reasoning modes](/advanced/reasoning-modes).
 
 **Test**: every model row has a "Test" button that sends one real request to verify connectivity, with the result shown below the row.
 
