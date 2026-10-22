@@ -68,6 +68,10 @@ class OpenAIAdapter @Inject constructor(
     /** 当前模型的思考能力，由工作流按元数据注入；null 时由 [ReasoningResolver] 按模型名兜底。 */
     override var reasoningCapability: ReasoningCapability? = null
 
+    /** 服务端 400 学到的档位优先于元数据：它反映的是该渠道真实接受的白名单。 */
+    private fun effectiveReasoningCapability(): ReasoningCapability? =
+        ReasoningLearning.recall(providerId, model) ?: reasoningCapability
+
     // null 时请求体不带 temperature（Gson 跳过 null 字段），交由服务端默认。
     override var temperature: Float? = null
 
@@ -140,6 +144,8 @@ class OpenAIAdapter @Inject constructor(
         } catch (e: Exception) {
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "OpenAI", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         }
         AILogger.logResponse(logSessionId, "OpenAI", response, seq)
@@ -177,10 +183,10 @@ class OpenAIAdapter @Inject constructor(
      *   真正归零需切到 Responses 端点）。
      */
     private fun chatReasoningPlan(effort: String?): ReasoningPlan =
-        ReasoningResolver.plan(ReasoningProtocol.OPENAI_CHAT, model, effort, reasoningCapability)
+        ReasoningResolver.plan(ReasoningProtocol.OPENAI_CHAT, model, effort, effectiveReasoningCapability())
 
     private fun responsesReasoningPlan(effort: String?): ReasoningPlan =
-        ReasoningResolver.plan(ReasoningProtocol.OPENAI_RESPONSES, model, effort, reasoningCapability)
+        ReasoningResolver.plan(ReasoningProtocol.OPENAI_RESPONSES, model, effort, effectiveReasoningCapability())
 
     /**
      * Responses 请求体。system prompt 作为首个 message item 进 `input`（与顶层 `instructions` 等价，
@@ -230,10 +236,9 @@ class OpenAIAdapter @Inject constructor(
                 DisableFieldKind.THINKING_TYPE -> {
                     request["thinking"] = mapOf("type" to "disabled")
                     // 少数厂商关闭时仍需带档位（Anthropic 系），OpenAI 兼容侧一般为空。
-                    reasoningCapability?.effortWhileDisabled?.let {
+                    effectiveReasoningCapability()?.effortWhileDisabled?.let {
                         request["reasoning"] = mapOf("effort" to it.apiValue)
-                    }
-                }
+                    }                }
                 DisableFieldKind.ENABLE_THINKING -> request["enable_thinking"] = false
             }
             ReasoningWire.BetweenTools -> request["thinking"] = mapOf("type" to "between_tools")
@@ -274,6 +279,8 @@ class OpenAIAdapter @Inject constructor(
         } catch (e: Exception) {
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "OpenAI", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         }
         AILogger.logResponse(logSessionId, "OpenAI", response, seq)
@@ -513,6 +520,8 @@ class OpenAIAdapter @Inject constructor(
             coroutineContext.ensureActive()
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "OpenAI", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         } finally {
             // 无论成功/失败/取消，把已收到的原始 SSE 落盘（重试时会从上次中断处续写）。
@@ -639,6 +648,8 @@ class OpenAIAdapter @Inject constructor(
             coroutineContext.ensureActive()
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "OpenAI", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         } finally {
             sseLog.finish()

@@ -50,6 +50,10 @@ class GeminiAdapter @Inject constructor(
     /** 当前模型的思考能力，由工作流按元数据注入；null 时由 [ReasoningResolver] 按模型名兜底。 */
     override var reasoningCapability: ReasoningCapability? = null
 
+    /** 服务端 400 学到的档位优先于元数据：它反映的是该渠道真实接受的白名单。 */
+    private fun effectiveReasoningCapability(): ReasoningCapability? =
+        ReasoningLearning.recall(providerId, model) ?: reasoningCapability
+
     // 原生 generateContent 不发 generationConfig.temperature：Gemini 2.0 起服务端默认就是 1.0，与推荐值一致。
     override var temperature: Float? = null
 
@@ -104,6 +108,8 @@ class GeminiAdapter @Inject constructor(
         } catch (e: Exception) {
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "Gemini", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         }
         AILogger.logResponse(logSessionId, "Gemini", response, seq)
@@ -336,6 +342,8 @@ class GeminiAdapter @Inject constructor(
             coroutineContext.ensureActive()
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "Gemini", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         } finally {
             sseLog.finish()
@@ -386,7 +394,7 @@ class GeminiAdapter @Inject constructor(
      * Interactions 只认档位、没有预算字段，因此预算型模型（2.5 系）在这里不发思考配置。
      */
     private fun interactionsThinkingLevel(reasoningEffort: String?): String? {
-        val plan = ReasoningResolver.plan(ReasoningProtocol.GEMINI, model, reasoningEffort, reasoningCapability)
+        val plan = ReasoningResolver.plan(ReasoningProtocol.GEMINI, model, reasoningEffort, effectiveReasoningCapability())
         return (plan.wire as? ReasoningWire.Effort)?.value
     }
 
@@ -418,6 +426,8 @@ class GeminiAdapter @Inject constructor(
         } catch (e: Exception) {
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "Gemini", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         }
         AILogger.logResponse(logSessionId, "Gemini", response, seq)
@@ -556,6 +566,8 @@ class GeminiAdapter @Inject constructor(
             coroutineContext.ensureActive()
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "Gemini", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         } finally {
             sseLog.finish()
@@ -670,7 +682,7 @@ class GeminiAdapter @Inject constructor(
      * 显式带上 `includeThoughts` 以返回思考内容。
      */
     private fun buildThinkingConfig(reasoningEffort: String?): Map<String, Any>? {
-        val plan = ReasoningResolver.plan(ReasoningProtocol.GEMINI, model, reasoningEffort, reasoningCapability)
+        val plan = ReasoningResolver.plan(ReasoningProtocol.GEMINI, model, reasoningEffort, effectiveReasoningCapability())
         return when (val wire = plan.wire) {
             is ReasoningWire.Effort -> mapOf("thinkingLevel" to wire.value, "includeThoughts" to true)
             is ReasoningWire.Budget -> mapOf("thinkingBudget" to wire.tokens, "includeThoughts" to true)

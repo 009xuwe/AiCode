@@ -61,6 +61,10 @@ class AnthropicAdapter @Inject constructor(
     /** 当前模型的思考能力，由工作流按元数据注入；null 时由 [ReasoningResolver] 按模型名兜底。 */
     override var reasoningCapability: ReasoningCapability? = null
 
+    /** 服务端 400 学到的档位优先于元数据：它反映的是该渠道真实接受的白名单。 */
+    private fun effectiveReasoningCapability(): ReasoningCapability? =
+        ReasoningLearning.recall(providerId, model) ?: reasoningCapability
+
     // null 时请求体不带 temperature（Gson 跳过 null 字段），交由服务端默认；开启 thinking 时官方要求必须不带。
     override var temperature: Float? = null
 
@@ -113,6 +117,8 @@ class AnthropicAdapter @Inject constructor(
         } catch (e: Exception) {
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "Anthropic", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         }
         AILogger.logResponse(logSessionId, "Anthropic", response, seq)
@@ -390,6 +396,8 @@ class AnthropicAdapter @Inject constructor(
             coroutineContext.ensureActive()
             val enriched = e.enrichWithHttpErrorBody()
             AILogger.logError(logSessionId, "Anthropic", enriched, seq)
+            // 400 文案常带白名单：学到之后后续请求直接用，不再重复踩同一个档位。
+            ReasoningLearning.observe(providerId, model, enriched, effectiveReasoningCapability())
             throw enriched
         } finally {
             // 无论成功/失败/取消，把已收到的原始 SSE 落盘（重试时会从上次中断处续写）。
@@ -446,7 +454,7 @@ class AnthropicAdapter @Inject constructor(
      *   Sonnet 5.5 的关闭语义是 `between_tools`。
      */
     private fun buildThinkingConfig(reasoningEffort: String?): Pair<AnthropicThinkingConfig?, AnthropicOutputConfig?> {
-        val plan = ReasoningResolver.plan(ReasoningProtocol.ANTHROPIC, model, reasoningEffort, reasoningCapability)
+        val plan = ReasoningResolver.plan(ReasoningProtocol.ANTHROPIC, model, reasoningEffort, effectiveReasoningCapability())
         return when (val wire = plan.wire) {
             is ReasoningWire.Effort -> AnthropicThinkingConfig(
                 type = "adaptive",

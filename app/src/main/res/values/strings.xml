@@ -418,6 +418,9 @@
     <string name="chat_reasoning_unknown_hint">未识别到该模型支持的档位，所选档位可能不生效</string>
     <string name="chat_reasoning_cannot_disable">该模型无法关闭思考，已改用最低档</string>
     <string name="chat_reasoning_endpoint_weak">当前端点可能忽略「关闭」，改用该厂商的新版端点（Responses）才能真关闭</string>
+    <string name="provider_model_section_reasoning">思考档位</string>
+    <string name="provider_model_reasoning_hint">只勾选该模型真实支持的档位；全部不勾则由内置能力表自动判断</string>
+    <string name="provider_model_reasoning_can_disable">可以关闭思考</string>
     <string name="chat_open_file_missing">文件不存在或已被移动</string>
     <string name="chat_open_file_unshareable">文件所在位置无法分享给其它应用</string>
     <string name="chat_open_file_no_app">没有可打开该文件的应用</string>

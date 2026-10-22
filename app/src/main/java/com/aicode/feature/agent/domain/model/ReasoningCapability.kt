@@ -57,8 +57,11 @@ data class ReasoningCapability(
         /** 来自内置厂商能力表（按模型名推断）。 */
         VENDOR_TABLE,
 
-        /** 用户在提供商设置里手动指定。 */
+        /** 用户手动指定。 */
         MANUAL,
+
+        /** 从服务端 400 文案里学到的真实白名单（同一模型换渠道可能不同）。 */
+        LEARNED,
 
         /** 未知：按协议保守兜底。 */
         UNKNOWN

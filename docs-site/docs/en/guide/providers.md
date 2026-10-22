@@ -88,6 +88,7 @@ Switch to the "Models" tab of the edit page.
 - **Output window**: the max length of a single reply.
 - **Pricing**: input / output / cache-read / cache-write tiers, in USD per million tokens, used for cost statistics.
 - **Capability toggles**: image input, image output, tool calls, reasoning.
+- **Reasoning levels**: tick the levels this model really accepts and whether thinking can be turned off. Leave empty to use the built-in capability table; filled values win (useful when a relay renamed the model).
 
 Your values take priority; unfilled ones fall back to auto-detected results. If auto-detection can't match the model name, it retries after stripping common suffixes like `-thinking`, `-preview`, `-high` — so most renamed relay models are still recognized.
 
