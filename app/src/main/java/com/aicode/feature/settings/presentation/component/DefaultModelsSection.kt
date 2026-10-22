@@ -36,14 +36,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aicode.R
 import com.aicode.core.theme.Spacing
+import com.aicode.feature.agent.domain.subagent.SubagentModelTier
+import com.aicode.feature.agent.domain.subagent.SubagentTierSelection
 import com.aicode.feature.onboarding.domain.OnboardingStep
 import com.aicode.feature.onboarding.presentation.onboardingTarget
 import com.aicode.feature.settings.data.local.ModelSheetCollapseStore
@@ -55,9 +59,12 @@ import compose.icons.feathericons.ArrowDown
 import compose.icons.feathericons.ArrowUp
 import compose.icons.feathericons.Check
 import compose.icons.feathericons.Camera
+import compose.icons.feathericons.Cpu
 import compose.icons.feathericons.Image
 import compose.icons.feathericons.Minimize2
+import compose.icons.feathericons.Sliders
 import compose.icons.feathericons.Type
+import compose.icons.feathericons.Zap
 
 /**
  * 默认模型二级页：集中管理应用中的默认/特定用途模型设置（如识图模型、压缩模型）。
@@ -73,6 +80,7 @@ internal fun DefaultModelsSection(
     titleModel: String,
     imageGenProviderId: String,
     imageGenModel: String,
+    subagentTierSelections: Map<SubagentModelTier, SubagentTierSelection>,
     modelMetadata: Map<String, ModelMetadata>,
     onLoadMetadata: () -> Unit,
     onSelectVisionModel: (providerId: String, model: String) -> Unit,
@@ -82,12 +90,16 @@ internal fun DefaultModelsSection(
     onSelectTitleModel: (providerId: String, model: String) -> Unit,
     onClearTitleModel: () -> Unit,
     onSelectImageGenModel: (providerId: String, model: String) -> Unit,
-    onClearImageGenModel: () -> Unit
+    onClearImageGenModel: () -> Unit,
+    onSelectSubagentTierModel: (SubagentModelTier, providerId: String, model: String) -> Unit,
+    onClearSubagentTierModel: (SubagentModelTier) -> Unit
 ) {
     var showVisionSheet by remember { mutableStateOf(false) }
     var showCompactionSheet by remember { mutableStateOf(false) }
     var showTitleSheet by remember { mutableStateOf(false) }
     var showImageGenSheet by remember { mutableStateOf(false) }
+    // 三档共用一个弹层：记下当前在编辑哪一档即可，不必三个 boolean。
+    var tierSheet by remember { mutableStateOf<SubagentModelTier?>(null) }
 
     LaunchedEffect(Unit) { onLoadMetadata() }
 
@@ -192,6 +204,41 @@ internal fun DefaultModelsSection(
                 }
             )
         }
+
+        // 子代理模型档位：AI 派发子代理时按任务难度选档，这里定义「哪一档对应哪个模型」。
+        SettingsGroupHeader(text = stringResource(R.string.settings_subagent_tiers_header))
+        Text(
+            text = stringResource(R.string.settings_subagent_tiers_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm)
+        )
+        SettingsGroup {
+            SubagentModelTier.entries.forEachIndexed { index, tier ->
+                if (index > 0) SettingsDivider()
+                val selection = subagentTierSelections[tier] ?: SubagentTierSelection()
+                SettingsRow(
+                    icon = tierIcon(tier),
+                    title = stringResource(tierTitleRes(tier)),
+                    onClick = { tierSheet = tier },
+                    trailing = {
+                        Text(
+                            text = if (selection.isConfigured) {
+                                selection.model
+                            } else {
+                                stringResource(R.string.settings_subagent_tier_unconfigured)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.weight(2f)
+                        )
+                    }
+                )
+            }
+        }
     }
 
     if (showVisionSheet) {
@@ -273,6 +320,42 @@ internal fun DefaultModelsSection(
             onDismiss = { showImageGenSheet = false }
         )
     }
+
+    tierSheet?.let { tier ->
+        val selection = subagentTierSelections[tier] ?: SubagentTierSelection()
+        ModelSelectionSheet(
+            title = stringResource(tierTitleRes(tier)),
+            noModelsText = stringResource(R.string.subagent_no_models),
+            providers = providers,
+            currentProviderId = selection.providerId,
+            currentModel = selection.model,
+            modelMetadata = modelMetadata,
+            onSelect = { pid, model ->
+                onSelectSubagentTierModel(tier, pid, model)
+                tierSheet = null
+            },
+            onClear = {
+                onClearSubagentTierModel(tier)
+                tierSheet = null
+            },
+            onDismiss = { tierSheet = null }
+        )
+    }
+}
+
+/** 档位显示名：轻量 / 标准 / 强力。 */
+@StringRes
+private fun tierTitleRes(tier: SubagentModelTier): Int = when (tier) {
+    SubagentModelTier.LIGHT -> R.string.settings_subagent_tier_light
+    SubagentModelTier.STANDARD -> R.string.settings_subagent_tier_standard
+    SubagentModelTier.STRONG -> R.string.settings_subagent_tier_strong
+}
+
+/** 档位图标：由弱到强用不同图示，方便一屏扫读。 */
+private fun tierIcon(tier: SubagentModelTier): ImageVector = when (tier) {
+    SubagentModelTier.LIGHT -> FeatherIcons.Zap
+    SubagentModelTier.STANDARD -> FeatherIcons.Sliders
+    SubagentModelTier.STRONG -> FeatherIcons.Cpu
 }
 
 /**

@@ -37,6 +37,16 @@
     <string name="tool_memory_saved">已保存记忆「%1$s」（%2$s）。后续会话可看到摘要，需要正文时用 read 读取。</string>
     <string name="tool_subagent_message_delivered">消息已投递。运行中的子代理会尽快收到，已结束的会继续处理消息。</string>
     <string name="tool_subagent_plan_readonly_warning">当前为 PLAN（计划）模式：子代理继承只读权限，文件修改与命令执行会被模式拦截。如确需实施，请先申请退出 PLAN 再派发。</string>
+    <string name="tool_subagent_tier_pinned">该子代理定义里已写死模型（%1$s），请求的「%2$s」档被忽略。</string>
+    <string name="tool_subagent_tier_fallback">请求的「%1$s」档未配置或对应提供商不可用，已改用「%2$s」档（%3$s）。</string>
+    <string name="tool_subagent_tier_unavailable">请求的「%1$s」档未配置或对应提供商不可用，该子代理将继承当前会话模型。</string>
+    <!-- 子代理模型档位 -->
+    <string name="settings_subagent_tiers_header">子代理模型档位</string>
+    <string name="settings_subagent_tiers_hint">AI 派发子代理时按任务难度选档；只配置你用得到的档位即可，未配置的档位会自动降级。</string>
+    <string name="settings_subagent_tier_light">轻量</string>
+    <string name="settings_subagent_tier_standard">标准</string>
+    <string name="settings_subagent_tier_strong">强力</string>
+    <string name="settings_subagent_tier_unconfigured">未配置</string>
     <string name="tool_browser_screenshot_failed">暂时无法截图。可稍后重试，或用 getText/getHtml 读取页面内容。</string>
     <string name="tool_browser_condition_met">条件已满足。</string>
     <string name="tool_browser_wait_timeout">等待超时，条件尚未满足。</string>

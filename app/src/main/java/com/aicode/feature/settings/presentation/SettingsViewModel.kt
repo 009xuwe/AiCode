@@ -45,6 +45,8 @@ import com.aicode.feature.agent.domain.subagent.AgentDefinitionRepository
 import com.aicode.feature.agent.domain.subagent.AgentDefinitionScope
 import com.aicode.feature.agent.domain.subagent.AgentSaveError
 import com.aicode.feature.agent.domain.subagent.InjectPart
+import com.aicode.feature.agent.domain.subagent.SubagentModelTier
+import com.aicode.feature.agent.domain.subagent.SubagentTierSelection
 import com.aicode.feature.agent.domain.tool.ToolRegistry
 import com.aicode.feature.settings.data.remote.ModelApiService
 import com.aicode.feature.settings.data.remote.ContainerImageDownloader
@@ -69,6 +71,7 @@ import com.aicode.feature.settings.data.repository.ExecutionMode
 import com.aicode.feature.settings.data.repository.CompactionModelSettingsRepository
 import com.aicode.feature.settings.data.repository.DefaultModelSettingsRepository
 import com.aicode.feature.settings.data.repository.TitleModelSettingsRepository
+import com.aicode.feature.settings.data.repository.SubagentTierSettingsRepository
 import com.aicode.feature.settings.data.repository.ExecutionModeHolder
 import com.aicode.feature.settings.data.repository.ExecutionModeRepository
 import com.aicode.feature.settings.data.repository.GeneralSettingsRepository
@@ -378,6 +381,7 @@ class SettingsViewModel @Inject constructor(
     private val imageGenModelSettingsRepository: ImageGenModelSettingsRepository,
     private val compactionModelSettingsRepository: CompactionModelSettingsRepository,
     private val titleModelSettingsRepository: TitleModelSettingsRepository,
+    private val subagentTierSettingsRepository: SubagentTierSettingsRepository,
     private val defaultModelSettingsRepository: DefaultModelSettingsRepository,
     private val containerSettingsRepository: ContainerSettingsRepository,
     private val containerImageCatalog: ContainerImageCatalog,
@@ -505,6 +509,16 @@ class SettingsViewModel @Inject constructor(
 
     private val _titleModel = MutableStateFlow("")
     val titleModel: StateFlow<String> = _titleModel.asStateFlow()
+
+    /**
+     * 子代理模型档位：三档各一对 (providerId, model)，空串即该档未配置。
+     * 映射始终包含全部档位，UI 直接按档位取用，不必判空。
+     */
+    private val _subagentTierSelections = MutableStateFlow(
+        SubagentModelTier.entries.associateWith { SubagentTierSelection() }
+    )
+    val subagentTierSelections: StateFlow<Map<SubagentModelTier, SubagentTierSelection>> =
+        _subagentTierSelections.asStateFlow()
 
     /** 生图专用模型选择：providerId 为空即未配置（生图不跟随聊天模型）。 */
     private val _imageGenProviderId = MutableStateFlow("")
@@ -889,6 +903,15 @@ class SettingsViewModel @Inject constructor(
             launch {
                 titleModelSettingsRepository.modelFlow.collectLatest {
                     _titleModel.value = it
+                }
+            }
+
+            // 三档子代理模型：任一档变化即刷新快照，UI 按档位渲染。
+            SubagentModelTier.entries.forEach { tier ->
+                launch {
+                    subagentTierSettingsRepository.selectionFlow(tier).collectLatest { selection ->
+                        _subagentTierSelections.value = _subagentTierSelections.value + (tier to selection)
+                    }
                 }
             }
 
@@ -2530,6 +2553,24 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** 设置某子代理模型档位绑定的模型；两个参数都留空等同 [clearSubagentTier]。 */
+    fun setSubagentTierModel(tier: SubagentModelTier, providerId: String, model: String) {
+        viewModelScope.launch {
+            if (providerId.isBlank() || model.isBlank()) {
+                subagentTierSettingsRepository.clear(tier)
+            } else {
+                subagentTierSettingsRepository.setSelection(tier, providerId, model)
+            }
+        }
+    }
+
+    /** 清空某档位——该档回退到「未配置」，派发时按降级链处理。 */
+    fun clearSubagentTier(tier: SubagentModelTier) {
+        viewModelScope.launch {
+            subagentTierSettingsRepository.clear(tier)
+        }
+    }
+
     /** 设置生图专用模型；providerId 留空等同 [clearImageGenModel]（未配置）。 */
     fun setImageGenModel(providerId: String, model: String) {
         viewModelScope.launch {
@@ -2696,6 +2737,8 @@ class SettingsViewModel @Inject constructor(
         ) {
             titleModelSettingsRepository.clear()
         }
+        // 档位绑定的是 provider + model，提供商整个被删时按 provider 直接清档。
+        subagentTierSettingsRepository.clearTiersUsingProvider(provider.id)
     }
 
     fun deleteProvider(id: String) {

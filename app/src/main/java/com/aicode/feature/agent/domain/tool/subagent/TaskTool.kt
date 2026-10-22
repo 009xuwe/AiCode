@@ -15,6 +15,10 @@ import com.aicode.feature.agent.domain.subagent.AgentDefinitionRepository
 import com.aicode.feature.agent.domain.subagent.SubAgentEvent
 import com.aicode.feature.agent.domain.subagent.SubAgentEventBus
 import com.aicode.feature.agent.domain.subagent.SubAgentEventType
+import com.aicode.feature.agent.domain.subagent.ResolvedSubagentModel
+import com.aicode.feature.agent.domain.subagent.SubagentModelFallback
+import com.aicode.feature.agent.domain.subagent.SubagentModelResolver
+import com.aicode.feature.agent.domain.subagent.SubagentModelTier
 import com.aicode.feature.agent.domain.tool.AbstractContextualTool
 import com.aicode.feature.agent.domain.tool.ParameterType
 import com.aicode.feature.agent.domain.tool.ToolCapability
@@ -23,6 +27,7 @@ import com.aicode.feature.agent.domain.tool.ToolPermissionPolicy
 import com.aicode.feature.agent.domain.tool.ToolResult
 import com.aicode.feature.agent.presentation.MessageRole
 import com.aicode.feature.settings.domain.repository.AIProviderRepository
+import com.aicode.feature.settings.data.repository.SubagentTierSettingsRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -59,6 +64,7 @@ class TaskTool @Inject constructor(
     private val eventBus: SubAgentEventBus,
     private val agentDefinitionRepository: AgentDefinitionRepository,
     private val aiProviderRepository: AIProviderRepository,
+    private val subagentTierSettings: SubagentTierSettingsRepository,
     @param:ApplicationContext private val appContext: Context
 ) : AbstractContextualTool() {
 
@@ -81,7 +87,7 @@ class TaskTool @Inject constructor(
         }
     }
 
-    override val description = "管理子代理：创建、发消息、读取结果、停止、删除、列出。子代理拥有独立上下文，按所选代理的工具集工作，不能嵌套创建子代理；最多同时运行 5 个。任务完成后会通知主会话，无需轮询；运行中也可能主动发消息。用 send 可追加指令或继续追问已完成的子代理。"
+    override val description = "管理子代理：创建、发消息、读取结果、停止、删除、列出。子代理拥有独立上下文，按所选代理的工具集工作，不能嵌套创建子代理；最多同时运行 5 个。任务完成后会通知主会话，无需轮询；运行中也可能主动发消息。用 send 可追加指令或继续追问已完成的子代理。创建时可用 tier 按任务难度选择模型档位（light 只读探索与机械活 / standard 单文件修改与常规修复 / strong 跨模块重构与疑难排查）；档位是否可用取决于用户在设置里的配置，未配置时按继承处理。"
 
     override val parameters: Map<String, ToolParameter> = mapOf(
         "action" to ToolParameter(
@@ -113,6 +119,13 @@ class TaskTool @Inject constructor(
             type = ParameterType.STRING,
             description = "自定义子代理名（create 可选）：取系统提示词「可用子代理」清单中的名称，按其专属提示词、模型与工具集运行；省略则用继承本会话模型的默认通用子代理",
             required = false
+        ),
+        "tier" to ToolParameter(
+            name = "tier",
+            type = ParameterType.STRING,
+            description = "模型档位（create 可选）：light（只读探索、批量定位、机械改名）/ standard（单文件修改、常规修复）/ strong（跨模块重构、疑难排查、方案设计）。按本次任务的难度选，不必固定用同一个档位。档位对应的具体模型由用户在设置里配置；未配置或对应提供商不可用时会自动降级并在结果里说明。子代理定义里写死了 model 时该参数被忽略。",
+            required = false,
+            enum = SubagentModelTier.entries.map { it.apiValue }
         ),
         "message" to ToolParameter(
             name = "message",
@@ -171,14 +184,17 @@ class TaskTool @Inject constructor(
             }
         }
 
+        // 解析本次要用的模型：定义锁定 > 请求档位 > 标准档 > 继承父会话（见 SubagentModelResolver）。
+        val modelBinding = resolveModel(args, definition)
+
         // 创建子代理会话
         val subSession = sessionUseCase.newSubSessionEntity(
             title = description,
             parentId = parentSessionId,
             parent = parentSession,
             subagentType = definition?.name ?: DEFAULT_SUBAGENT_TYPE,
-            providerId = definition?.providerId?.let { resolveProviderId(it) },
-            model = definition?.model,
+            providerId = modelBinding.providerId ?: definition?.providerId?.let { resolveProviderId(it) },
+            model = modelBinding.model,
             reasoningEffort = definition?.reasoningEffort?.let { effort ->
                 ReasoningEffort.entries.firstOrNull { it.apiValue == effort }?.name
             },
@@ -203,11 +219,15 @@ class TaskTool @Inject constructor(
                 put("id", subSessionId)
                 put("state", "running")
                 definition?.let { put("agent", it.name) }
+                put("tier", modelBinding.tier?.apiValue ?: "inherit")
+                put("model", modelBinding.model ?: "inherit")
                 // 子会话继承父会话模式；PLAN 下写/命令一律被拦，提前说清，省得子代理白跑一轮。
                 val writeCapped = context.mode == AgentMode.PLAN && (definition?.canModifyOrExecute() ?: true)
-                if (writeCapped) {
-                    put("warning", appContext.getString(R.string.tool_subagent_plan_readonly_warning))
+                val warnings = buildList {
+                    if (writeCapped) add(appContext.getString(R.string.tool_subagent_plan_readonly_warning))
+                    describeModelFallback(modelBinding)?.let { add(it) }
                 }
+                if (warnings.isNotEmpty()) put("warning", warnings.joinToString("\n"))
                 put("mode", context.mode.name)
                 put(
                     "message",
@@ -217,6 +237,60 @@ class TaskTool @Inject constructor(
             }
         )
     }
+
+    /** 解析本次派发实际使用的模型（同步读三档快照 + 校验提供商可用性）。 */
+    private suspend fun resolveModel(
+        args: Map<String, JsonElement>,
+        definition: AgentDefinition?
+    ): ResolvedSubagentModel {
+        val requestedTier = SubagentModelTier.fromToken(
+            (args["tier"] as? JsonPrimitive)?.contentOrNull
+        )
+        // 提供商可用性先取一次快照：解析器是纯函数（非 suspend），不能在里面查库。
+        val enabledProviderIds = runCatching {
+            aiProviderRepository.getAllProviders().first().filter { it.isEnabled }.map { it.id }.toSet()
+        }.getOrDefault(emptySet())
+        return SubagentModelResolver.resolve(
+            requestedTier = requestedTier,
+            definitionModel = definition?.model,
+            definitionProviderId = definition?.providerId?.let { resolveProviderId(it) },
+            selections = runCatching { subagentTierSettings.snapshot() }.getOrDefault(emptyMap()),
+            isProviderAvailable = { id -> id in enabledProviderIds }
+        )
+    }
+
+    /**
+     * 档位没按请求生效时给主代理的解释。Claude Code 同款做法：不隐藏，讲清请求与实际，
+     * 免得主代理以为换了模型还在等它的效果。
+     */
+    private fun describeModelFallback(binding: ResolvedSubagentModel): String? {
+        val requested = binding.requestedTier ?: return null
+        val requestedLabel = tierLabel(requested)
+        return when (binding.fallback) {
+            SubagentModelFallback.DEFINITION_PINNED -> appContext.getString(
+                R.string.tool_subagent_tier_pinned,
+                binding.model ?: "inherit",
+                requestedLabel
+            )
+            SubagentModelFallback.TIER_UNAVAILABLE -> binding.tier?.let { applied ->
+                appContext.getString(
+                    R.string.tool_subagent_tier_fallback,
+                    requestedLabel,
+                    tierLabel(applied),
+                    binding.model ?: "inherit"
+                )
+            } ?: appContext.getString(R.string.tool_subagent_tier_unavailable, requestedLabel)
+            null -> null
+        }
+    }
+
+    private fun tierLabel(tier: SubagentModelTier): String = appContext.getString(
+        when (tier) {
+            SubagentModelTier.LIGHT -> R.string.settings_subagent_tier_light
+            SubagentModelTier.STANDARD -> R.string.settings_subagent_tier_standard
+            SubagentModelTier.STRONG -> R.string.settings_subagent_tier_strong
+        }
+    )
 
     /**
      * 向指定子代理发送一条消息（可反复发送）。

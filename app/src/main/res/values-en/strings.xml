@@ -37,6 +37,16 @@
     <string name="tool_memory_saved">Saved memory “%1$s” (%2$s). Its summary will be available in later sessions; use read for the full text.</string>
     <string name="tool_subagent_message_delivered">Message delivered. A running subagent will receive it shortly; an idle subagent will resume to process it.</string>
     <string name="tool_subagent_plan_readonly_warning">PLAN mode is active: subagents inherit read-only permissions, so file edits and commands will be blocked. If implementation is needed, request to exit PLAN before delegating.</string>
+    <string name="tool_subagent_tier_pinned">This subagent pins its model (%1$s), so the requested "%2$s" tier was ignored.</string>
+    <string name="tool_subagent_tier_fallback">The requested "%1$s" tier is not configured or its provider is unavailable; using the "%2$s" tier (%3$s) instead.</string>
+    <string name="tool_subagent_tier_unavailable">The requested "%1$s" tier is not configured or its provider is unavailable; this subagent will inherit the current session model.</string>
+    <!-- Subagent model tiers -->
+    <string name="settings_subagent_tiers_header">Subagent model tiers</string>
+    <string name="settings_subagent_tiers_hint">AI picks a tier by task difficulty when delegating. Configure only the tiers you need; unconfigured tiers fall back automatically.</string>
+    <string name="settings_subagent_tier_light">Light</string>
+    <string name="settings_subagent_tier_standard">Standard</string>
+    <string name="settings_subagent_tier_strong">Strong</string>
+    <string name="settings_subagent_tier_unconfigured">Not configured</string>
     <string name="tool_browser_screenshot_failed">A screenshot is currently unavailable. Try again later, or use getText/getHtml to read the page.</string>
     <string name="tool_browser_condition_met">Condition met.</string>
     <string name="tool_browser_wait_timeout">Timed out before the condition was met.</string>
