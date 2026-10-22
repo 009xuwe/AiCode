@@ -7,8 +7,13 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.FileSystemLoopException
+import java.nio.file.Files
 
 /**
  * WorkspacePathMapper：容器路径 ↔ 宿主真实路径互转。
@@ -17,6 +22,17 @@ import java.io.File
  * 与异步 profile 切换（extraBindings 挂载分支依赖该异步更新，纯 JVM 下竞态不稳定，不在本类覆盖）。
  */
 class WorkspacePathMapperTest {
+
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    private fun filesystemMapper(): WorkspacePathMapper {
+        val mapper = newMapper()
+        every { workspaceRepository.currentPath() } returns tmp.newFolder("workspace").absolutePath
+        every { containerInstaller.aicodeDir } returns tmp.newFolder("aicode")
+        every { containerInstaller.rootfsDirFor(any()) } returns tmp.newFolder("rootfs")
+        return mapper
+    }
 
     private val workspaceRepository: WorkspaceRepository = mockk()
     private val containerInstaller: ContainerInstaller = mockk()
@@ -126,5 +142,67 @@ class WorkspacePathMapperTest {
     @Test
     fun toContainerPath_unmappedPath_unchanged() {
         assertEquals("/somewhere/else", newMapper().toContainerPath("/somewhere/else"))
+    }
+
+    @Test
+    fun resolveFile_absoluteDirectoryLink_mapsTargetToWorkspace() {
+        val mapper = filesystemMapper()
+        val target = mapper.toHostFile("target").apply { mkdirs() }
+        File(target, "probe.txt").writeText("test")
+        Files.createSymbolicLink(mapper.toHostFile("link").toPath(), File("/root/workspace/target").toPath())
+        assertEquals(File(target, "probe.txt"), mapper.resolveFile("~/workspace/link/probe.txt"))
+        assertEquals("test", mapper.resolveFile("link/probe.txt").readText())
+    }
+
+    @Test
+    fun resolveHostFile_projectPermissionsLink_mapsTargetAndMissingFile() {
+        val mapper = filesystemMapper()
+        val target = mapper.toHostFile("project/.aicode").apply { mkdirs() }
+        Files.createSymbolicLink(mapper.toHostFile(".aicode").toPath(), File("/root/workspace/project/.aicode").toPath())
+        assertEquals(File(target, "permissions.json"), mapper.resolveHostFile(mapper.toHostFile(".aicode/permissions.json")))
+    }
+
+    @Test
+    fun resolveFile_relativeLinksAndParentSegments_resolveAfterLink() {
+        val mapper = filesystemMapper()
+        mapper.toHostFile("target/sub").mkdirs()
+        Files.createSymbolicLink(mapper.toHostFile("relative").toPath(), File("target/sub").toPath())
+        Files.createSymbolicLink(mapper.toHostFile("chain").toPath(), File("relative").toPath())
+        assertEquals(mapper.toHostFile("target/probe.txt"), mapper.resolveFile("chain/../probe.txt"))
+    }
+
+    @Test
+    fun resolveFile_absoluteLinks_mapRootfsAndGlobalConfig() {
+        val mapper = filesystemMapper()
+        Files.createSymbolicLink(mapper.toHostFile("system").toPath(), File("/etc").toPath())
+        Files.createSymbolicLink(mapper.toHostFile("global").toPath(), File("/root/.aicode").toPath())
+        assertEquals(mapper.toHostFile("/etc/hosts"), mapper.resolveFile("system/hosts"))
+        assertEquals(mapper.toHostFile("/root/.aicode/permissions.json"), mapper.resolveFile("global/permissions.json"))
+    }
+
+    @Test
+    fun resolveFile_noFollowFinalLink_stillResolvesParentLinks() {
+        val mapper = filesystemMapper()
+        mapper.toHostFile("target").mkdirs()
+        Files.createSymbolicLink(mapper.toHostFile("parent").toPath(), File("/root/workspace/target").toPath())
+        Files.createSymbolicLink(mapper.toHostFile("target/leaf").toPath(), File("/missing").toPath())
+        assertEquals(mapper.toHostFile("target/leaf"), mapper.resolveFile("parent/leaf", followFinalLink = false))
+        assertEquals(mapper.toHostFile("/missing"), mapper.resolveFile("parent/leaf"))
+    }
+
+    @Test
+    fun resolveHostFile_unmappedHostPath_preservesOriginalFile() {
+        val mapper = filesystemMapper()
+        val file = tmp.newFile("outside.txt")
+        assertEquals(file, mapper.resolveHostFile(file))
+    }
+
+    @Test
+    fun resolveFile_linkCycle_throwsInsteadOfHanging() {
+        val mapper = filesystemMapper()
+        Files.createSymbolicLink(mapper.toHostFile("a").toPath(), File("b").toPath())
+        Files.createSymbolicLink(mapper.toHostFile("b").toPath(), File("a").toPath())
+        assertThrows(FileSystemLoopException::class.java) { mapper.resolveFile("a/file") }
+        assertEquals(mapper.toHostFile("a"), mapper.resolveFile("a", followFinalLink = false))
     }
 }
