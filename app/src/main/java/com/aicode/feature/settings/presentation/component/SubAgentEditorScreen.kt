@@ -265,7 +265,7 @@ internal fun SubAgentEditorScreen(
                             effort.takeIf { it.isNotBlank() }
                                 ?.let { value ->
                                     ReasoningEffort.entries.firstOrNull { it.apiValue == value }
-                                        ?.let { stringResource(it.labelRes()) }
+                                        ?.let { it.withApiLabel() }
                                 }
                                 ?: stringResource(R.string.subagent_inherit_parent)
                         )
@@ -414,7 +414,7 @@ internal fun SubAgentEditorScreen(
                     effortOptions.forEach { item ->
                         SettingsDivider()
                         PickerRow(
-                            title = stringResource(item.labelRes()),
+                            title = item.withApiLabel(),
                             selected = effort == item.apiValue,
                             onClick = {
                                 effort = item.apiValue
@@ -636,6 +636,11 @@ private fun AgentSaveError.messageRes(): Int = when (this) {
     AgentSaveError.NAME_CONFLICT -> R.string.subagent_editor_error_name_conflict
     AgentSaveError.IO_FAILED -> R.string.subagent_editor_error_io
 }
+
+/** 档位显示名：中文 + 对应接口值（如「最高（max）」）。 */
+@Composable
+private fun ReasoningEffort.withApiLabel(): String =
+    stringResource(R.string.common_label_with_api, stringResource(labelRes()), apiValue)
 
 private fun ReasoningEffort.labelRes(): Int = when (this) {
     ReasoningEffort.NONE -> R.string.chat_reasoning_effort_none

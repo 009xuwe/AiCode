@@ -350,6 +350,8 @@
     <string name="common_show">Show</string>
     <string name="common_local">Local</string>
     <string name="common_model">Model</string>
+    <!-- Level name followed by its API value, e.g. "Max (max)", to match model docs and error text. -->
+    <string name="common_label_with_api">%1$s (%2$s)</string>
     <string name="common_add">Add</string>
     <string name="credential_add">Add Credential</string>
     <string name="common_username">Username</string>

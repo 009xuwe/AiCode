@@ -1386,7 +1386,7 @@ private fun AddModelSheet(
                             EDITABLE_REASONING_LEVELS.forEach { level ->
                                 SettingsDivider()
                                 ReasoningLevelRow(
-                                    title = stringResource(level.reasoningLabelRes()),
+                                    title = level.reasoningLabel(),
                                     checked = level.apiValue in reasoningLevels,
                                     onToggle = {
                                         reasoningLevels = if (level.apiValue in reasoningLevels) {
@@ -1463,6 +1463,11 @@ private val EDITABLE_REASONING_LEVELS = listOf(
     ReasoningEffort.XHIGH,
     ReasoningEffort.MAX
 )
+
+/** 档位显示名：中文 + 对应接口值（如「最高（max）」）。 */
+@Composable
+private fun ReasoningEffort.reasoningLabel(): String =
+    stringResource(R.string.common_label_with_api, stringResource(reasoningLabelRes()), apiValue)
 
 private fun ReasoningEffort.reasoningLabelRes(): Int = when (this) {
     ReasoningEffort.NONE -> R.string.chat_reasoning_effort_none

@@ -350,6 +350,8 @@
     <string name="common_show">显示</string>
     <string name="common_local">本地</string>
     <string name="common_model">模型</string>
+    <!-- 档位名后附接口值，如「最高（max）」，便于对照模型文档与报错文案。 -->
+    <string name="common_label_with_api">%1$s（%2$s）</string>
     <string name="common_add">添加</string>
     <string name="credential_add">添加凭据</string>
     <string name="common_username">用户名</string>
