@@ -183,6 +183,12 @@ export default defineConfig({
           ]
         },
         {
+          text: '模型与推理',
+          items: [
+            { text: '思考强度与关闭思考', link: '/advanced/reasoning-modes' }
+          ]
+        },
+        {
           text: '扩展开发',
           items: [
             { text: '自定义面板', link: '/advanced/dashboard-cards' }
