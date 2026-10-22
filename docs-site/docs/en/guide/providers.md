@@ -92,7 +92,7 @@ Switch to the "Models" tab of the edit page.
 
 Your values take priority; unfilled ones fall back to auto-detected results. If auto-detection can't match the model name, it retries after stripping common suffixes like `-thinking`, `-preview`, `-high` — so most renamed relay models are still recognized.
 
-**Thinking effort**: the lightning icon above the input box opens a sheet with a **Thinking** switch at the top (only shown for models that can actually turn thinking off) and, below it, only the levels the model really supports — the provider default is tagged **Default**.
+**Thinking effort**: the lightning icon above the input box controls reasoning depth, and the label right of it always shows the level in effect (e.g. **High**; it reads **Off** when thinking is turned off, or the lowest level actually sent when the model can't be turned off). Tapping it opens a sheet with a **Thinking** switch at the top (only shown for models that can actually turn thinking off) and, below it, only the levels the model really supports — the provider default is tagged **Default**.
 
 - Pick a level above what the model supports and it clamps to the nearest lower level; the sheet states the outcome, e.g. **Effective: High**.
 - For models that always think, the sheet says so and marks the level that will actually be sent.

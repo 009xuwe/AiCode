@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -113,24 +115,43 @@ internal fun ReasoningEffortSelector(
     }
     val levels = remember(capability) { capability.selectableLevelsForUi() }
     val thinkingOn = effort != ReasoningEffort.NONE
+    // 输入栏里只显示「实际会生效」的短名：真被降级时显示降级后的档位，关得掉才显示「不思考」。
+    val barLabel = when {
+        plan.isDisableRequested && plan.reason != ReasoningPlan.Reason.CANNOT_DISABLE ->
+            stringResource(R.string.chat_reasoning_off_short)
+        plan.effectiveLevel != null -> stringResource(plan.effectiveLevel!!.labelRes())
+        else -> stringResource(effort.labelRes())
+    }
+    val tint = when {
+        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+        thinkingOn -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+    }
 
-    Box {
-        IconButton(
-            onClick = { showSheet = true },
-            enabled = enabled,
-            modifier = Modifier.size(36.dp)
-        ) {
-            Icon(
-                FeatherIcons.Zap,
-                contentDescription = stringResource(effort.labelRes()),
-                tint = when {
-                    !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                    thinkingOn -> MaterialTheme.colorScheme.onSurfaceVariant
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                },
-                modifier = Modifier.size(20.dp)
-            )
-        }
+    // 闪电 + 当前档位：整块可点，点开同一个弹层。
+    Row(
+        modifier = Modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(Radius.sm))
+            .clickable(enabled = enabled) { showSheet = true }
+            .padding(horizontal = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            FeatherIcons.Zap,
+            contentDescription = stringResource(effort.labelRes()),
+            tint = tint,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(2.dp))
+        Text(
+            text = barLabel,
+            style = MaterialTheme.typography.labelMedium,
+            color = tint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 64.dp)
+        )
     }
 
     if (showSheet) {

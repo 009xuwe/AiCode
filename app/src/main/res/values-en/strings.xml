@@ -415,6 +415,7 @@
     <string name="chat_reasoning_effort_xhigh">Extra high</string>
     <string name="chat_reasoning_effort_max">Max</string>
     <string name="chat_reasoning_toggle">Thinking</string>
+    <string name="chat_reasoning_off_short">Off</string>
     <string name="chat_reasoning_default_tag">Default</string>
     <string name="chat_reasoning_effective_tag">Active</string>
     <string name="chat_reasoning_effective">Effective: %1$s</string>

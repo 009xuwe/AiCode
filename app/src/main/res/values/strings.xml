@@ -415,6 +415,7 @@
     <string name="chat_reasoning_effort_xhigh">极高</string>
     <string name="chat_reasoning_effort_max">最高</string>
     <string name="chat_reasoning_toggle">思考</string>
+    <string name="chat_reasoning_off_short">不思考</string>
     <string name="chat_reasoning_default_tag">默认</string>
     <string name="chat_reasoning_effective_tag">生效</string>
     <string name="chat_reasoning_effective">实际生效：%1$s</string>
