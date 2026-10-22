@@ -57,7 +57,10 @@ import com.aicode.feature.agent.domain.provider.OpenAIAdapter
 import com.aicode.feature.settings.domain.model.ProviderType
 import com.aicode.feature.settings.domain.model.ModelContextPolicy
 import com.aicode.feature.agent.domain.provider.StreamApiException
+import com.aicode.feature.agent.domain.provider.clampedFrom
+import com.aicode.feature.agent.domain.provider.reasoningPlanFor
 import com.aicode.feature.agent.domain.provider.toReasoningCapability
+import com.aicode.feature.agent.domain.provider.wireSummary
 import com.aicode.feature.settings.domain.repository.AIProviderRepository
 import com.aicode.feature.workspace.domain.FileAccessProvider
 import kotlinx.coroutines.CancellationException
@@ -697,12 +700,17 @@ class StatefulAgentWorkflow @Inject constructor(
                             val durationMillis = (SystemClock.elapsedRealtime() - callStartElapsed).toInt()
                             val usage = stream.finalResponse
                             runCatching {
+                                // 与适配器同源算一次「实际会发什么」：落库后能在统计页分辨
+                                // 「选了但没生效」「被降级」这些静默问题。
+                                val reasoningPlan = reasoningPlanFor(providerInUse, currentContext.reasoningEffort)
                                 llmCallRecordDao.insert(
                                     LlmCallRecordEntity(
                                         sessionId = currentContext.sessionId,
                                         providerId = providerInUse.providerId.ifBlank { null },
                                         model = providerInUse.model,
                                         reasoningEffort = currentContext.reasoningEffort,
+                                        reasoningWire = reasoningPlan.wireSummary(),
+                                        reasoningClampedFrom = reasoningPlan.clampedFrom(currentContext.reasoningEffort),
                                         kind = callKind,
                                         inputTokens = usage?.inputTokens ?: 0,
                                         outputTokens = usage?.outputTokens ?: 0,

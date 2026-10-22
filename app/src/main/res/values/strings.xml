@@ -106,6 +106,7 @@
     <string name="settings_token_stats_calls_suffix2">%1$d 次调用</string>
     <string name="settings_token_stats_col_model">模型</string>
     <string name="settings_token_stats_col_reasoning_effort">思考强度</string>
+    <string name="settings_token_stats_col_reasoning_wire">实际发出</string>
     <string name="settings_token_stats_col_provider">供应商</string>
     <string name="settings_token_stats_col_input">输入</string>
     <string name="settings_token_stats_col_output">输出</string>
