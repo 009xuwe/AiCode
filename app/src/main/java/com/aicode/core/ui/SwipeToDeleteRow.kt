@@ -49,7 +49,11 @@ import kotlinx.coroutines.launch
  * 全项目统一的左滑删除行容器：底层红色删除按钮固定在右端，随左滑露出（带缩放/透明度渐变），
  * 表层内容整体左滑，滑开时点击表层收回。
  *
- * 手势与动画参数全项目保持一致（露出宽度 -112dp、按钮上限 104dp、回弹弹簧参数），改这里即全局生效。
+ * 手势与动画参数全项目保持一致（露出宽度 -112dp、按钮宽度 104dp、回弹弹簧参数），改这里即全局生效。
+ *
+ * 性能约定（长列表必需）：滑块位置 [Animatable] 只在 `offset {}` / `graphicsLayer {}` 里读取，
+ * 绝不能在组合期读 `offsetX.value`——否则手指每移动一帧都会让整行重组，并反复增删删除按钮子树，
+ * 列表一长就明显掉帧。
  *
  * @param onDelete 点按删除按钮后触发（先收回再回调）。是否弹二次确认由调用方决定。
  * @param onClick 表层未滑开时的点击回调；null 表示整行不可点击。
@@ -69,17 +73,12 @@ fun SwipeToDeleteRow(
     val revealPx = remember(density) { with(density) { -112.dp.toPx() } }
     val offsetX = remember { Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
-
-    val revealedWidthDp = with(density) { (-offsetX.value).toDp().coerceAtLeast(0.dp) }
-    val maxButtonWidth = 104.dp
-    val buttonWidth = if (revealedWidthDp > 8.dp) (revealedWidthDp - 8.dp).coerceAtMost(maxButtonWidth) else 0.dp
-    val progress = (buttonWidth / maxButtonWidth).coerceIn(0f, 1f)
     // 不可删除时按钮呈灰色，与可删状态区分
     val buttonBg = if (deleteEnabled) Color(0xFFEF4444) else Color(0xFF9CA3AF)
     val buttonBorder = if (deleteEnabled) Color(0xFFF87171) else Color(0xFFD1D5DB)
 
     Box(modifier = modifier.fillMaxWidth()) {
-        // 底层删除按钮：随滑动露出，缩放与透明度跟随进度
+        // 底层删除按钮：宽度固定，露出程度/缩放/透明度全部在 graphicsLayer 里按动画值现算。
         Row(
             modifier = Modifier
                 .matchParentSize()
@@ -87,48 +86,48 @@ fun SwipeToDeleteRow(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (buttonWidth > 0.dp) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(buttonWidth)
-                        .graphicsLayer {
-                            alpha = (progress * 1.2f).coerceIn(0f, 1f)
-                            scaleX = (0.4f + 0.6f * progress).coerceIn(0f, 1f)
-                            scaleY = (0.7f + 0.3f * progress).coerceIn(0f, 1f)
-                        }
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(buttonBg)
-                        .border(1.dp, buttonBorder, RoundedCornerShape(10.dp))
-                        .clickable(enabled = deleteEnabled) {
-                            coroutineScope.launch {
-                                offsetX.animateTo(0f)
-                                onDelete()
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = Modifier.requiredWidth(104.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = FeatherIcons.Trash2,
-                            contentDescription = stringResource(R.string.common_delete),
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.common_delete),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp
-                            ),
-                            color = Color.White
-                        )
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(104.dp)
+                    .graphicsLayer {
+                        // offsetX 与 revealPx 同为负值，比值即露出进度。
+                        val progress = (offsetX.value / revealPx).coerceIn(0f, 1f)
+                        alpha = (progress * 1.2f).coerceIn(0f, 1f)
+                        scaleX = (0.4f + 0.6f * progress).coerceIn(0f, 1f)
+                        scaleY = (0.7f + 0.3f * progress).coerceIn(0f, 1f)
                     }
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(buttonBg)
+                    .border(1.dp, buttonBorder, RoundedCornerShape(10.dp))
+                    .clickable(enabled = deleteEnabled) {
+                        coroutineScope.launch {
+                            offsetX.animateTo(0f)
+                            onDelete()
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier.requiredWidth(104.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = FeatherIcons.Trash2,
+                        contentDescription = stringResource(R.string.common_delete),
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.common_delete),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        ),
+                        color = Color.White
+                    )
                 }
             }
         }

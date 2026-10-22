@@ -1,10 +1,10 @@
 package com.aicode.feature.settings.presentation.component
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,15 +12,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,6 +46,8 @@ import compose.icons.feathericons.Users
  * 子代理二级页：与「技能」一致的折叠分组列表——「当前项目 / 全局」两组各自可折叠，
  * 每行一个子代理（图标 + 名称 + 描述 + 模型标签），左滑删除，点击行进入详情。
  * 新建入口在顶栏的「＋」，启用开关与编辑入口在详情页。
+ *
+ * 列表走 [LazyColumn] 只组合可见行：子代理数量随项目增长，一次组合全部行会明显掉帧。
  */
 @Composable
 internal fun SubAgentsSection(
@@ -53,8 +56,11 @@ internal fun SubAgentsSection(
     onDelete: (SubAgentUiEntry) -> Unit,
     onOpenDetail: (SubAgentUiEntry) -> Unit
 ) {
-    val projectAgents = entries.filter { it.scope == AgentDefinitionScope.PROJECT }
-    val globalAgents = entries.filter { it.scope == AgentDefinitionScope.GLOBAL }
+    // 只在数据变化时分组，避免每次重组都产生两份新 List。
+    val (projectAgents, globalAgents) = remember(entries) {
+        entries.filter { it.scope == AgentDefinitionScope.PROJECT } to
+            entries.filter { it.scope == AgentDefinitionScope.GLOBAL }
+    }
 
     if (entries.isEmpty()) {
         Box(
@@ -99,30 +105,34 @@ internal fun SubAgentsSection(
     var projectExpanded by rememberSaveable { mutableStateOf(true) }
     var globalExpanded by rememberSaveable { mutableStateOf(true) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = Spacing.lg)
-            .padding(bottom = Spacing.xl),
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.xl),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
-        CollapsibleGroupHeader(
-            text = if (projectName != null) {
-                stringResource(R.string.perm_current_project, projectName)
-            } else {
-                stringResource(R.string.perm_current_project_none)
-            },
-            expanded = projectExpanded,
-            onToggle = { projectExpanded = !projectExpanded }
-        )
-        AnimatedVisibility(visible = projectExpanded) {
-            SettingsGroup {
-                if (projectAgents.isEmpty()) {
-                    SubAgentEmptyHint(stringResource(R.string.subagents_no_project))
+        item(key = "project-header", contentType = "header") {
+            CollapsibleGroupHeader(
+                text = if (projectName != null) {
+                    stringResource(R.string.perm_current_project, projectName)
                 } else {
-                    projectAgents.forEachIndexed { index, entry ->
-                        if (index > 0) SettingsDivider()
+                    stringResource(R.string.perm_current_project_none)
+                },
+                expanded = projectExpanded,
+                onToggle = { projectExpanded = !projectExpanded }
+            )
+        }
+        if (projectExpanded) {
+            if (projectAgents.isEmpty()) {
+                item(key = "project-empty", contentType = "empty") {
+                    SettingsGroup { SubAgentEmptyHint(stringResource(R.string.subagents_no_project)) }
+                }
+            } else {
+                itemsIndexed(
+                    items = projectAgents,
+                    key = { _, entry -> "project:${entry.name}" },
+                    contentType = { _, _ -> "agent-row" }
+                ) { index, entry ->
+                    LazyGroupItem(index = index, lastIndex = projectAgents.lastIndex) {
                         SubAgentRow(
                             entry = entry,
                             onDelete = { onDelete(entry) },
@@ -133,18 +143,25 @@ internal fun SubAgentsSection(
             }
         }
 
-        CollapsibleGroupHeader(
-            text = stringResource(R.string.perm_global),
-            expanded = globalExpanded,
-            onToggle = { globalExpanded = !globalExpanded }
-        )
-        AnimatedVisibility(visible = globalExpanded) {
-            SettingsGroup {
-                if (globalAgents.isEmpty()) {
-                    SubAgentEmptyHint(stringResource(R.string.subagents_no_global))
-                } else {
-                    globalAgents.forEachIndexed { index, entry ->
-                        if (index > 0) SettingsDivider()
+        item(key = "global-header", contentType = "header") {
+            CollapsibleGroupHeader(
+                text = stringResource(R.string.perm_global),
+                expanded = globalExpanded,
+                onToggle = { globalExpanded = !globalExpanded }
+            )
+        }
+        if (globalExpanded) {
+            if (globalAgents.isEmpty()) {
+                item(key = "global-empty", contentType = "empty") {
+                    SettingsGroup { SubAgentEmptyHint(stringResource(R.string.subagents_no_global)) }
+                }
+            } else {
+                itemsIndexed(
+                    items = globalAgents,
+                    key = { _, entry -> "global:${entry.name}" },
+                    contentType = { _, _ -> "agent-row" }
+                ) { index, entry ->
+                    LazyGroupItem(index = index, lastIndex = globalAgents.lastIndex) {
                         SubAgentRow(
                             entry = entry,
                             onDelete = { onDelete(entry) },
@@ -164,13 +181,11 @@ private fun SubAgentRow(
     onDelete: () -> Unit,
     onClick: () -> Unit
 ) {
-    val rowBackground = MaterialTheme.semanticColors.cardSurface
-
+    // 行背景由 SwipeToDeleteRow 提供，这里不再重复画一层。
     SwipeToDeleteRow(onDelete = onDelete, onClick = onClick) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(rowBackground)
                 .padding(start = Spacing.lg, end = Spacing.xs, top = 11.dp, bottom = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

@@ -12,12 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -87,57 +88,62 @@ internal fun McpSection(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = Spacing.lg)
-            .padding(bottom = Spacing.xl),
+    // 状态按名字建索引：长列表里每行 firstOrNull 扫一遍 statuses 是 O(n*m)，搜索时更明显。
+    val statusByName = remember(statuses) { statuses.associateBy { it.name } }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.xl),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         if (entries.size >= 3) {
-            ModelSearchField(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                placeholder = stringResource(R.string.mcp_search_placeholder),
-                modifier = Modifier.padding(bottom = Spacing.xs)
-            )
+            item(key = "search", contentType = "search") {
+                ModelSearchField(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    placeholder = stringResource(R.string.mcp_search_placeholder),
+                    modifier = Modifier.padding(bottom = Spacing.xs)
+                )
+            }
         }
 
         if (filteredEntries.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 48.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            item(key = "search-empty", contentType = "empty") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 48.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        FeatherIcons.Search,
-                        contentDescription = null,
-                        modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    Text(
-                        text = stringResource(R.string.mcp_search_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        Icon(
+                            FeatherIcons.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Text(
+                            text = stringResource(R.string.mcp_search_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         } else {
-            SettingsGroup {
-                filteredEntries.forEachIndexed { index, entry ->
-                    if (index > 0) {
-                        SettingsDivider()
-                    }
+            itemsIndexed(
+                items = filteredEntries,
+                key = { _, entry -> "${entry.scope}:${entry.server.name}" },
+                contentType = { _, _ -> "mcp-row" }
+            ) { index, entry ->
+                LazyGroupItem(index = index, lastIndex = filteredEntries.lastIndex) {
                     McpServerRow(
                         server = entry.server,
                         scope = entry.scope,
-                        status = statuses.firstOrNull { it.name == entry.server.name },
+                        status = statusByName[entry.server.name],
                         onClick = { onEdit(entry) },
                         onDelete = { onDelete(entry.server.name, entry.scope) }
                     )
