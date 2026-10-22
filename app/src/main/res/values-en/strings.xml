@@ -106,6 +106,7 @@
     <string name="settings_token_stats_calls_suffix2">%1$d calls</string>
     <string name="settings_token_stats_col_model">Model</string>
     <string name="settings_token_stats_col_reasoning_effort">Effort</string>
+    <string name="settings_token_stats_col_reasoning_wire">Sent as</string>
     <string name="settings_token_stats_col_provider">Vendor</string>
     <string name="settings_token_stats_col_input">Input</string>
     <string name="settings_token_stats_col_output">Output</string>
@@ -349,6 +350,8 @@
     <string name="common_show">Show</string>
     <string name="common_local">Local</string>
     <string name="common_model">Model</string>
+    <!-- Level name followed by its API value, e.g. "Max (max)", to match model docs and error text. -->
+    <string name="common_label_with_api">%1$s (%2$s)</string>
     <string name="common_add">Add</string>
     <string name="credential_add">Add Credential</string>
     <string name="common_username">Username</string>
@@ -411,6 +414,17 @@
     <string name="chat_reasoning_effort_high">High</string>
     <string name="chat_reasoning_effort_xhigh">Extra high</string>
     <string name="chat_reasoning_effort_max">Max</string>
+    <string name="chat_reasoning_toggle">Thinking</string>
+    <string name="chat_reasoning_off_short">Off</string>
+    <string name="chat_reasoning_default_tag">Default</string>
+    <string name="chat_reasoning_effective_tag">Active</string>
+    <string name="chat_reasoning_effective">Effective: %1$s</string>
+    <string name="chat_reasoning_unknown_hint">Levels are unknown for this model, so the selected level may not take effect</string>
+    <string name="chat_reasoning_cannot_disable">This model always thinks; the lowest level is used instead</string>
+    <string name="chat_reasoning_endpoint_weak">This endpoint may ignore &quot;None&quot;; switch to the provider\'s Responses endpoint to fully disable thinking</string>
+    <string name="provider_model_section_reasoning">Reasoning levels</string>
+    <string name="provider_model_reasoning_hint">Tick only the levels this model really accepts; leave all unticked to use the built-in capability table</string>
+    <string name="provider_model_reasoning_can_disable">Thinking can be turned off</string>
     <string name="chat_open_file_missing">File not found or has been moved</string>
     <string name="chat_open_file_unshareable">This file\'s location cannot be shared with other apps</string>
     <string name="chat_open_file_no_app">No app available to open this file</string>

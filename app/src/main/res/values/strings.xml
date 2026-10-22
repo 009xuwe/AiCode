@@ -106,6 +106,7 @@
     <string name="settings_token_stats_calls_suffix2">%1$d 次调用</string>
     <string name="settings_token_stats_col_model">模型</string>
     <string name="settings_token_stats_col_reasoning_effort">思考强度</string>
+    <string name="settings_token_stats_col_reasoning_wire">实际发出</string>
     <string name="settings_token_stats_col_provider">供应商</string>
     <string name="settings_token_stats_col_input">输入</string>
     <string name="settings_token_stats_col_output">输出</string>
@@ -349,6 +350,8 @@
     <string name="common_show">显示</string>
     <string name="common_local">本地</string>
     <string name="common_model">模型</string>
+    <!-- 档位名后附接口值，如「最高（max）」，便于对照模型文档与报错文案。 -->
+    <string name="common_label_with_api">%1$s（%2$s）</string>
     <string name="common_add">添加</string>
     <string name="credential_add">添加凭据</string>
     <string name="common_username">用户名</string>
@@ -411,6 +414,17 @@
     <string name="chat_reasoning_effort_high">高</string>
     <string name="chat_reasoning_effort_xhigh">极高</string>
     <string name="chat_reasoning_effort_max">最高</string>
+    <string name="chat_reasoning_toggle">思考</string>
+    <string name="chat_reasoning_off_short">不思考</string>
+    <string name="chat_reasoning_default_tag">默认</string>
+    <string name="chat_reasoning_effective_tag">生效</string>
+    <string name="chat_reasoning_effective">实际生效：%1$s</string>
+    <string name="chat_reasoning_unknown_hint">未识别到该模型支持的档位，所选档位可能不生效</string>
+    <string name="chat_reasoning_cannot_disable">该模型无法关闭思考，已改用最低档</string>
+    <string name="chat_reasoning_endpoint_weak">当前端点可能忽略「关闭」，改用该厂商的新版端点（Responses）才能真关闭</string>
+    <string name="provider_model_section_reasoning">思考档位</string>
+    <string name="provider_model_reasoning_hint">只勾选该模型真实支持的档位；全部不勾则由内置能力表自动判断</string>
+    <string name="provider_model_reasoning_can_disable">可以关闭思考</string>
     <string name="chat_open_file_missing">文件不存在或已被移动</string>
     <string name="chat_open_file_unshareable">文件所在位置无法分享给其它应用</string>
     <string name="chat_open_file_no_app">没有可打开该文件的应用</string>

@@ -904,6 +904,7 @@ private fun CallRecordsTable(
                     TableCell(stringResource(R.string.settings_token_stats_col_provider), mutedColor, COL_PROVIDER_W, FontWeight.Medium)
                     TableCell(stringResource(R.string.settings_token_stats_col_model), mutedColor, COL_MODEL_W, FontWeight.Medium)
                     TableCell(stringResource(R.string.settings_token_stats_col_reasoning_effort), mutedColor, COL_EFFORT_W, FontWeight.Medium)
+                    TableCell(stringResource(R.string.settings_token_stats_col_reasoning_wire), mutedColor, COL_EFFORT_W, FontWeight.Medium)
                     TableCell(stringResource(R.string.settings_token_stats_col_status), mutedColor, COL_STATUS_W, FontWeight.Medium)
                     TableCell(stringResource(R.string.settings_token_stats_col_input), mutedColor, COL_TOKENS_W, FontWeight.Medium)
                     TableCell(stringResource(R.string.settings_token_stats_col_output), mutedColor, COL_TOKENS_W, FontWeight.Medium)
@@ -940,6 +941,14 @@ private fun CallRecordRow(call: RecentCallRecord, cost: Double?, textColor: Colo
         TableCell(call.providerName ?: call.record.providerId ?: stringResource(R.string.settings_token_stats_unknown), textColor, COL_PROVIDER_W)
         TableCell(call.record.model ?: stringResource(R.string.settings_token_stats_unknown), textColor, COL_MODEL_W)
         TableCell(call.record.reasoningEffort ?: "-", mutedColor, COL_EFFORT_W)
+        // 发生降级时显示「原档位 → 实际发出」，否则只显示实际发出的思考参数。
+        TableCell(
+            call.record.reasoningClampedFrom?.let { from -> "$from → ${call.record.reasoningWire}" }
+                ?: call.record.reasoningWire
+                ?: "-",
+            mutedColor,
+            COL_EFFORT_W
+        )
         TableCell(call.record.status, statusColor, COL_STATUS_W, FontWeight.Medium)
         TableCell(call.record.inputTokens.toString(), textColor, COL_TOKENS_W)
         TableCell(call.record.outputTokens.toString(), textColor, COL_TOKENS_W)
