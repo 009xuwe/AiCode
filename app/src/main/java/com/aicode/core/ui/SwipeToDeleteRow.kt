@@ -19,10 +19,14 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,6 +43,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aicode.R
+import com.aicode.core.theme.Spacing
 import com.aicode.core.theme.semanticColors
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Trash2
@@ -58,6 +63,10 @@ import kotlinx.coroutines.launch
  * @param onDelete 点按删除按钮后触发（先收回再回调）。是否弹二次确认由调用方决定。
  * @param onClick 表层未滑开时的点击回调；null 表示整行不可点击。
  * @param deleteEnabled false 时删除按钮可露出但点击无效（如未下载完成的镜像不可删）。
+ * @param selectionMode 多选模式：不渲染滑动手势与删除按钮，整行点击改为勾选，行首加勾选框。
+ * @param selected 多选模式下该行是否勾选。
+ * @param onToggleSelect 多选模式下整行点击 / 勾选框点击的回调。
+ * @param selectable false 时该行在多选模式下不可勾选（勾选框置灰，如不可编辑的提示词片段）。
  * @param content 表层行内容；背景由本组件提供，内边距由调用方内容自带（与既有各页用法一致）。
  */
 @Composable
@@ -66,9 +75,41 @@ fun SwipeToDeleteRow(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     deleteEnabled: Boolean = true,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    selectable: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val rowBackground = MaterialTheme.semanticColors.cardSurface
+
+    // 多选模式：行首勾选框 + 整行可点即勾选，滑动手势与红色删除按钮整体不参与组合。
+    if (selectionMode) {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(rowBackground)
+                .clickable(enabled = selectable) { onToggleSelect() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = { onToggleSelect() },
+                    enabled = selectable,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary,
+                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.padding(horizontal = Spacing.xs)
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                content()
+            }
+        }
+        return
+    }
     val density = LocalDensity.current
     val revealPx = remember(density) { with(density) { -112.dp.toPx() } }
     val offsetX = remember { Animatable(0f) }

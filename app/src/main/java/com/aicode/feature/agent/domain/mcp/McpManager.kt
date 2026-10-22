@@ -282,6 +282,16 @@ class McpManager @Inject constructor(
         _statuses.value = _statuses.value.filterNot { it.name == name }
     }
 
+    /**
+     * 批量删除：一次持锁断开多个 server（列表多选批量删除）。
+     * 逐条调用 [removeServer] 会反复抢 reloadMutex，服务端较多时串行等待明显。
+     */
+    suspend fun removeServers(names: Collection<String>) = reloadMutex.withLock {
+        if (names.isEmpty()) return@withLock
+        names.forEach { teardownServer(it) }
+        _statuses.value = _statuses.value.filterNot { it.name in names }
+    }
+
     /** 触发某个 server 的 OAuth 授权；成功后重连使其工具可用。 */
     suspend fun authorize(name: String): Result<Unit> {
         val cfg = configRepository.getEffectiveServers().firstOrNull { it.name == name }

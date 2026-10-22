@@ -29,6 +29,17 @@ Each row shows the name, upstream format, model count and enabled status.
 - **Swipe a row left** to reveal a red delete button.
 - **Long-press and drag the name or upstream format area** to reorder; the order survives restart.
 
+### Batch operations
+
+The **Select** button at the top right (the check-square icon) lets you handle several vendors at once:
+
+1. Tap **Select** to enter multi-select mode: a checkbox appears on the left of each row and tapping anywhere on the row toggles it.
+2. An action bar appears on top with "N selected", **Enable / Disable / Delete**, and an **×** on the right to leave multi-select mode (the system back gesture does the same).
+3. **Select All** picks every vendor in the list; tap again to deselect all.
+4. **Delete** asks for confirmation first, then removes all selected vendors and leaves multi-select mode.
+
+While in multi-select mode, drag-to-reorder is disabled and tapping a row only toggles selection — leave the mode to edit a vendor.
+
 ## Multi-Key Mode
 
 ::: tip Version note
