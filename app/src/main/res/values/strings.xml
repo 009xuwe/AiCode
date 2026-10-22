@@ -42,9 +42,8 @@
     <string name="tool_subagent_tier_unavailable">请求的「%1$s」档未配置或对应提供商不可用，该子代理将继承当前会话模型。</string>
     <!-- 子代理模型档位 -->
     <string name="settings_subagent_tiers_header">子代理模型档位</string>
-    <string name="settings_subagent_tiers_hint">AI 派发子代理时按任务难度选档；只配置你用得到的档位即可，未配置的档位会自动降级。</string>
     <string name="settings_subagent_tier_light">轻量</string>
-    <string name="settings_subagent_tier_standard">标准</string>
+    <string name="settings_subagent_tier_standard">均衡</string>
     <string name="settings_subagent_tier_strong">强力</string>
     <string name="settings_subagent_tier_unconfigured">未配置</string>
     <string name="tool_browser_screenshot_failed">暂时无法截图。可稍后重试，或用 getText/getHtml 读取页面内容。</string>

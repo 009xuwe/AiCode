@@ -207,12 +207,6 @@ internal fun DefaultModelsSection(
 
         // 子代理模型档位：AI 派发子代理时按任务难度选档，这里定义「哪一档对应哪个模型」。
         SettingsGroupHeader(text = stringResource(R.string.settings_subagent_tiers_header))
-        Text(
-            text = stringResource(R.string.settings_subagent_tiers_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.sm)
-        )
         SettingsGroup {
             SubagentModelTier.entries.forEachIndexed { index, tier ->
                 if (index > 0) SettingsDivider()

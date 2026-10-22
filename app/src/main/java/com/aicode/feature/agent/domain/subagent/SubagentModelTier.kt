@@ -52,7 +52,7 @@ data class ResolvedSubagentModel(
 
 /** 档位没按请求生效的原因，用于生成给主代理的说明文案。 */
 enum class SubagentModelFallback {
-    /** 请求的档位没配置，或它绑定的提供商已删除/停用；已退到「标准」档或继承父会话。 */
+    /** 请求的档位没配置，或它绑定的提供商已删除/停用；已退到「均衡」档或继承父会话。 */
     TIER_UNAVAILABLE,
 
     /** 子代理定义里写死了 model，请求的档位被忽略。 */
@@ -65,7 +65,7 @@ enum class SubagentModelFallback {
  * 优先级（与用户可见文档一致）：
  * 1. 定义里写死了 `model` → 用定义（视为用户锁定该子代理的模型，忽略档位）；
  * 2. 请求的档位已配置且提供商可用 → 用该档位；
- * 3. 退到「标准」档（若已配置且可用）；
+ * 3. 退到「均衡」档（若已配置且可用）；
  * 4. 都不可用 → 继承父会话。
  *
  * 纯函数：提供商可用性由调用方以谓词传入，便于单测覆盖各种降级组合。
@@ -104,7 +104,7 @@ object SubagentModelResolver {
             )
         }
 
-        // 2) 降级：请求档位不可用时退到「标准」。
+        // 2) 降级：请求档位不可用时退到「均衡」。
         if (requestedTier != SubagentModelTier.STANDARD) {
             usable(SubagentModelTier.STANDARD)?.let { selection ->
                 return ResolvedSubagentModel(

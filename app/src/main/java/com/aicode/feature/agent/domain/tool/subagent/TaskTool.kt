@@ -184,7 +184,7 @@ class TaskTool @Inject constructor(
             }
         }
 
-        // 解析本次要用的模型：定义锁定 > 请求档位 > 标准档 > 继承父会话（见 SubagentModelResolver）。
+        // 解析本次要用的模型：定义锁定 > 请求档位 > 均衡档 > 继承父会话（见 SubagentModelResolver）。
         val modelBinding = resolveModel(args, definition)
 
         // 创建子代理会话

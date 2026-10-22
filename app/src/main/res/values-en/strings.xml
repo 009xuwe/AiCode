@@ -42,9 +42,8 @@
     <string name="tool_subagent_tier_unavailable">The requested "%1$s" tier is not configured or its provider is unavailable; this subagent will inherit the current session model.</string>
     <!-- Subagent model tiers -->
     <string name="settings_subagent_tiers_header">Subagent model tiers</string>
-    <string name="settings_subagent_tiers_hint">AI picks a tier by task difficulty when delegating. Configure only the tiers you need; unconfigured tiers fall back automatically.</string>
     <string name="settings_subagent_tier_light">Light</string>
-    <string name="settings_subagent_tier_standard">Standard</string>
+    <string name="settings_subagent_tier_standard">Balanced</string>
     <string name="settings_subagent_tier_strong">Strong</string>
     <string name="settings_subagent_tier_unconfigured">Not configured</string>
     <string name="tool_browser_screenshot_failed">A screenshot is currently unavailable. Try again later, or use getText/getHtml to read the page.</string>

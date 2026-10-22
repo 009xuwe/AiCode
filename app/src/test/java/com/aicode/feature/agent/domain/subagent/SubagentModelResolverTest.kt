@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 档位解析：定义锁定 > 请求档位 > 标准档 > 继承父会话。
+ * 档位解析：定义锁定 > 请求档位 > 均衡档 > 继承父会话。
  *
  * 背景：中转站常有上百个模型，主代理只判断任务难度并给出档位，具体用哪个模型由用户在设置里
  * 绑定。档位没配或提供商不可用时必须降级**并且讲清原因**，否则主代理会以为换了模型在等效果。
@@ -80,7 +80,7 @@ class SubagentModelResolverTest {
         assertNull(resolved.fallback)
     }
 
-    /** 请求的档位没配 → 退到「标准」档，并标记降级。 */
+    /** 请求的档位没配 → 退到「均衡」档，并标记降级。 */
     @Test
     fun unconfiguredTier_fallsBackToStandard() {
         val resolved = resolve(
@@ -98,7 +98,7 @@ class SubagentModelResolverTest {
         assertEquals(SubagentModelFallback.TIER_UNAVAILABLE, resolved.fallback)
     }
 
-    /** 请求的就是「标准」档且没配 → 没有下一档可退，直接继承父会话。 */
+    /** 请求的就是「均衡」档且没配 → 没有下一档可退，直接继承父会话。 */
     @Test
     fun unconfiguredStandardTier_inheritsParent() {
         val resolved = resolve(
