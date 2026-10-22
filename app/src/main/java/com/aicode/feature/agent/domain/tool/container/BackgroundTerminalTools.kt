@@ -497,7 +497,7 @@ class TerminalSessionTool @Inject constructor(
     }
 
     private fun outputDelta(previous: String, current: String): String {
-        if (current == previous) return ""
+        if (current.isEmpty() || current == previous) return ""
         if (current.startsWith(previous)) return current.substring(previous.length)
 
         // 找 previous 后缀与 current 前缀的最长重叠。原实现用 current.take(length) 每次分配子串，
