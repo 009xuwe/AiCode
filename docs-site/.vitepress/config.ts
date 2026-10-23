@@ -28,7 +28,8 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: 'Guide', link: '/en/guide/quick-start', activeMatch: '/en/guide/' },
-          { text: 'Download', link: 'https://github.com/jieapi/aicode/releases/latest' }
+          { text: 'Download', link: 'https://github.com/jieapi/aicode/releases/latest' },
+          { text: 'Privacy', link: '/en/privacy' }
         ],
         sidebar: {
           '/en/guide/': [
@@ -95,7 +96,8 @@ export default defineConfig({
     nav: [
       { text: '使用手册', link: '/guide/quick-start', activeMatch: '/guide/' },
       { text: '进阶教程', link: '/advanced/build-android-app', activeMatch: '/advanced/' },
-      { text: '下载', link: 'https://github.com/jieapi/aicode/releases/latest' }
+      { text: '下载', link: 'https://github.com/jieapi/aicode/releases/latest' },
+      { text: '隐私政策', link: '/privacy' }
     ],
     sidebar: {
       '/guide/': [
