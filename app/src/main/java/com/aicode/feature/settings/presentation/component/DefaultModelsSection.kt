@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,14 +21,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import com.aicode.core.ui.AdaptiveModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +56,7 @@ import com.aicode.feature.agent.domain.subagent.SubagentTierSelection
 import com.aicode.feature.onboarding.domain.OnboardingStep
 import com.aicode.feature.onboarding.presentation.onboardingTarget
 import com.aicode.feature.settings.data.local.ModelSheetCollapseStore
+import com.aicode.feature.settings.data.remote.ModelTestResult
 import com.aicode.feature.settings.domain.model.AIProviderConfig
 import com.aicode.feature.settings.domain.model.ModelMetadata
 import com.aicode.feature.settings.domain.model.modelMetadataKey
@@ -355,6 +361,9 @@ private fun tierIcon(tier: SubagentModelTier): ImageVector = when (tier) {
 /**
  * 模型选择弹窗：风格与拉取模型弹窗保持一致（iOS 胶囊搜索框、提供商分组卡片、能力 Tag）。
  * 识图模型、压缩模型与主页聊天模型共用此组件，仅文案不同；右上角「重置」清除专用模型配置（回退跟随聊天模型），主页场景传 null 不显示。
+ *
+ * 测试支持：传入 [onTestModel]（主页场景）时每个模型行尾显示「测试」按钮与结果，不显示选中小勾；
+ * 未传（识图/压缩等设置页场景）保持原样，仅在选中行尾显示小勾。测试态与结果由调用方持有，key 用 [modelMetadataKey]。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -367,7 +376,10 @@ internal fun ModelSelectionSheet(
     modelMetadata: Map<String, ModelMetadata>,
     onSelect: (providerId: String, model: String) -> Unit,
     onClear: (() -> Unit)?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onTestModel: ((provider: AIProviderConfig, model: String) -> Unit)? = null,
+    testingModels: Set<String> = emptySet(),
+    testResults: Map<String, ModelTestResult> = emptyMap()
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
@@ -469,11 +481,15 @@ internal fun ModelSelectionSheet(
                                             if (index > 0) {
                                                 SettingsDivider()
                                             }
+                                            val testKey = modelMetadataKey(provider.id, model)
                                             ModelSelectionRow(
                                                 model = model,
                                                 selected = provider.id == currentProviderId && model == currentModel,
-                                                metadata = modelMetadata[modelMetadataKey(provider.id, model)],
-                                                onClick = { onSelect(provider.id, model) }
+                                                metadata = modelMetadata[testKey],
+                                                onClick = { onSelect(provider.id, model) },
+                                                onTest = onTestModel?.let { test -> { test(provider, model) } },
+                                                testing = testKey in testingModels,
+                                                result = if (onTestModel != null) testResults[testKey] else null
                                             )
                                         }
                                     }
@@ -487,12 +503,19 @@ internal fun ModelSelectionSheet(
     }
 }
 
+/**
+ * 单个模型行。传 [onTest]（主页场景）时行尾显示「测试」按钮 / 测试中转圈与结果行，选中态只用名称颜色表达；
+ * 未传时保持原样：选中行尾显示小勾。
+ */
 @Composable
 private fun ModelSelectionRow(
     model: String,
     selected: Boolean,
     metadata: ModelMetadata?,
     onClick: () -> Unit,
+    onTest: (() -> Unit)? = null,
+    testing: Boolean = false,
+    result: ModelTestResult? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -514,8 +537,34 @@ private fun ModelSelectionRow(
             )
             Spacer(Modifier.height(4.dp))
             ModelMetadataTags(metadata)
+            result?.let {
+                ModelTestResultLine(model = model, result = it, modifier = Modifier.padding(top = 2.dp))
+            }
         }
-        if (selected) {
+        if (onTest != null) {
+            // 弹层行高较紧凑，关掉 48dp 最小触摸尺寸约束，让按钮贴合行高。
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+                if (testing) {
+                    Box(
+                        modifier = Modifier.width(56.dp).height(36.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    }
+                } else {
+                    TextButton(
+                        onClick = onTest,
+                        contentPadding = PaddingValues(horizontal = Spacing.xs, vertical = 0.dp),
+                        modifier = Modifier.width(56.dp).height(32.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.provider_test),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                }
+            }
+        } else if (selected) {
             Spacer(Modifier.width(Spacing.sm))
             Icon(
                 imageVector = FeatherIcons.Check,

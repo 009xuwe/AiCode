@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,13 +45,16 @@ import com.aicode.feature.agent.domain.provider.preferredOnLevel
 import com.aicode.feature.agent.domain.provider.selectableLevelsForUi
 import com.aicode.feature.agent.domain.provider.showsThinkingToggle
 import com.aicode.feature.onboarding.domain.OnboardingStep
+import com.aicode.feature.settings.data.remote.ModelTestResult
 import com.aicode.feature.settings.domain.model.AIProviderConfig
 import com.aicode.feature.settings.domain.model.ModelMetadata
+import com.aicode.feature.settings.domain.model.modelMetadataKey
 import com.aicode.feature.settings.presentation.component.ModelLogoIcon
 import com.aicode.feature.settings.presentation.component.ModelSelectionSheet
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Check
 import compose.icons.feathericons.Zap
+import kotlinx.coroutines.launch
 
 /**
  * 输入区下行的模型切换图标按钮
@@ -64,7 +68,8 @@ internal fun ModelIconButton(
     modifier: Modifier = Modifier,
     forceOpenSheet: Boolean = false,
     onSelectSuccessInOnboarding: (() -> Unit)? = null,
-    onSheetDismiss: (() -> Unit)? = null
+    onSheetDismiss: (() -> Unit)? = null,
+    runModelTest: (suspend (AIProviderConfig, String) -> ModelTestResult)? = null
 ) {
     var showSheet by remember { mutableStateOf(false) }
     val effectiveShowSheet = showSheet || forceOpenSheet
@@ -87,7 +92,8 @@ internal fun ModelIconButton(
             onDismiss = {
                 showSheet = false
                 onSheetDismiss?.invoke()
-            }
+            },
+            runModelTest = runModelTest
         )
     }
 }
@@ -309,6 +315,8 @@ private fun ReasoningEffort.labelRes(): Int = when (this) {
 
 /**
  * 模型选择弹窗：复用设置页默认模型的 [ModelSelectionSheet]（iOS 胶囊搜索框、提供商分组卡片、能力 Tag）。
+ * 传入 [runModelTest] 时每个模型行提供「测试」按钮（不显示选中小勾）。测试态与结果按 provider+模型
+ * 在弹层内持有：跨 provider 的同名模型不会串结果，弹层关闭随作用域取消在途请求。
  */
 @Composable
 internal fun ModelSheet(
@@ -317,8 +325,13 @@ internal fun ModelSheet(
     currentModel: String,
     modelMetadata: Map<String, ModelMetadata>,
     onSelect: (String, String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    runModelTest: (suspend (AIProviderConfig, String) -> ModelTestResult)? = null
 ) {
+    val testScope = rememberCoroutineScope()
+    var testingModels by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var testResults by remember { mutableStateOf<Map<String, ModelTestResult>>(emptyMap()) }
+
     ModelSelectionSheet(
         title = stringResource(R.string.common_model),
         noModelsText = stringResource(R.string.chat_no_models_hint),
@@ -328,6 +341,20 @@ internal fun ModelSheet(
         modelMetadata = modelMetadata,
         onSelect = onSelect,
         onClear = null,
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        onTestModel = runModelTest?.let { runner ->
+            { provider, model ->
+                val key = modelMetadataKey(provider.id, model)
+                testingModels = testingModels + key
+                testResults = testResults - key
+                testScope.launch {
+                    val result = runner(provider, model)
+                    testResults = testResults + (key to result)
+                    testingModels = testingModels - key
+                }
+            }
+        },
+        testingModels = testingModels,
+        testResults = testResults
     )
 }

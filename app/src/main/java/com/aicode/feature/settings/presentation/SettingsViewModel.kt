@@ -2839,6 +2839,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 主页模型弹层用：直接跑一次连通性测试并返回结果。
+     * 不落 ViewModel 状态——弹层跨多个 provider，同名模型会撞 key，
+     * 测试中的行集合与结果由弹层自己按 provider+模型持有。
+     */
+    suspend fun runModelTest(provider: AIProviderConfig, model: String): ModelTestResult =
+        modelApiService.testModel(provider.baseUrl, provider.firstUsableApiKey, provider.type, provider.useFullUrl, provider.useResponseApi, model, provider.customHeaders)
+
     fun clearTestResults() {
         _testResults.value = emptyMap()
         _testing.value = emptySet()
