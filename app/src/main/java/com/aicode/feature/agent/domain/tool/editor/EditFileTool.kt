@@ -73,11 +73,11 @@ class EditFileTool @Inject constructor(
         "properties" to mapOf(
             "old_string" to mapOf(
                 "type" to "string",
-                "description" to "要被替换的原文，需与文件当前内容精确匹配（含缩进和换行）。带足够上下文以保证唯一。"
+                "description" to "要被替换的原文，除 LF/CRLF 换行差异外需与文件当前内容精确匹配（含缩进）。带足够上下文以保证唯一。"
             ),
             "new_string" to mapOf(
                 "type" to "string",
-                "description" to "替换后的新内容。传空字符串表示删除匹配到的内容。"
+                "description" to "替换后的新内容，换行沿用匹配区域或文件的换行格式。传空字符串表示删除匹配到的内容。"
             ),
             "replace_all" to mapOf(
                 "type" to "boolean",
@@ -228,11 +228,15 @@ class EditFileTool @Inject constructor(
             var totalReplacements = 0
 
             edits.forEachIndexed { i, e ->
-                val occurrences = content.split(e.oldString).size - 1
+                // readFile 按行返回 LF，匹配时只兼容换行差异，避免改写文件的其它区域。
+                val pattern = e.oldString.replace("\r\n", "\n").split('\n')
+                    .joinToString("(?:\\r\\n|(?<!\\r)\\n)") { Regex.escape(it) }
+                    .toRegex()
+                val occurrences = pattern.findAll(content).count()
                 if (occurrences == 0) {
                     FileLogger.w(TAG, "edit_file 第 ${i + 1} 个编辑未匹配: $path")
                     return ToolResult.Error(
-                        "第 ${i + 1} 个编辑未在文件中找到 old_string，请确认内容（含缩进/换行）与当前文件完全一致",
+                        "第 ${i + 1} 个编辑未在文件中找到 old_string，请确认内容（含缩进，LF/CRLF 换行差异除外）与当前文件完全一致",
                         "NO_MATCH"
                     )
                 }
@@ -246,16 +250,20 @@ class EditFileTool @Inject constructor(
 
                 // 变更在「应用本编辑前」内容中的起始行号（1 基）。因为内容已包含此前所有编辑的结果，
                 // 这个行号已经反映了前序编辑造成的行漂移，对自上而下的常规编辑顺序是准确的。
-                val matchIndex = content.indexOf(e.oldString)
-                val startLine = if (matchIndex >= 0) content.substring(0, matchIndex).count { it == '\n' } + 1 else 1
+                val firstMatch = pattern.find(content)!!
+                val startLine = content.substring(0, firstMatch.range.first).count { it == '\n' } + 1
 
                 val diff = LineDiff.toUnified(e.oldString, e.newString)
                 val added = diff.lines().count { it.startsWith("+") }
                 val removed = diff.lines().count { it.startsWith("-") }
                 hunks.add(Hunk(startLine = startLine, added = added, removed = removed, diff = diff))
 
-                content = if (e.replaceAll) content.replace(e.oldString, e.newString)
-                else content.replaceFirst(e.oldString, e.newString)
+                val lineEndingPattern = Regex("\r\n|\n")
+                val fileLineEnding = lineEndingPattern.find(content)?.value ?: "\n"
+                content = pattern.replace(content) { match ->
+                    val lineEnding = lineEndingPattern.find(match.value)?.value ?: fileLineEnding
+                    e.newString.replace("\r\n", "\n").replace("\n", lineEnding)
+                }
                 totalReplacements += if (e.replaceAll) occurrences else 1
             }
 
