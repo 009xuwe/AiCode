@@ -107,6 +107,19 @@ class GeminiAdapterTest {
     }
 
     @Test
+    fun budgetZero_omits_includeThoughts() = runTest {
+        val api = FakeApi(textResponse())
+        // Gemini 拒绝 thinkingBudget=0 与 includeThoughts=true 同发（invalid argument），
+        // 关闭思考的 2.5 系模型必须只发预算。
+        adapter(api)
+            .apply { model = "gemini-2.5-flash" }
+            .complete("sys", listOf(user("hi")), reasoningEffort = "none")
+
+        val config = generationConfig(api.lastRequest)
+        assertEquals(mapOf("thinkingBudget" to 0), config["thinkingConfig"])
+    }
+
+    @Test
     fun max_output_tokens_absent_when_metadata_missing() = runTest {
         val api = FakeApi(textResponse())
         adapter(api, maxOutput = null).complete("sys", listOf(user("hi")))
