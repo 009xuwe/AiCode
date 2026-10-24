@@ -232,7 +232,7 @@ private fun WorkspaceSelectionHost(
         WorkspaceSheet(
             workspaces = workspaces,
             current = current,
-            showExternalEntry = isLocalMode,
+            isLocalMode = isLocalMode,
             onAddExternal = {
                 if (externalWarningDismissed) folderLauncher.launch(null)
                 else showExternalWarning = true
@@ -313,7 +313,7 @@ private fun WorkspaceSelectionHost(
 private fun WorkspaceSheet(
     workspaces: List<Workspace>,
     current: Workspace?,
-    showExternalEntry: Boolean,
+    isLocalMode: Boolean,
     onAddExternal: () -> Unit,
     onSelect: (Workspace) -> Unit,
     onCreate: (String) -> Unit,
@@ -325,6 +325,9 @@ private fun WorkspaceSheet(
     val sheetState = rememberModalBottomSheetState()
     var showCreateDialog by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<Workspace?>(null) }
+    val createWorkspaceLabel = stringResource(
+        if (isLocalMode) R.string.workspace_new_internal else R.string.workspace_new_workspace
+    )
 
     AdaptiveModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -347,23 +350,23 @@ private fun WorkspaceSheet(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
-                if (showExternalEntry) {
+                if (isLocalMode) {
                     TextButton(onClick = onAddExternal) {
                         Icon(FeatherIcons.HardDrive, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(Spacing.xs))
-                        Text(stringResource(R.string.workspace_add_local_dir))
+                        Text(stringResource(R.string.workspace_add_external))
                     }
                 }
                 TextButton(onClick = { showCreateDialog = true }) {
                     Icon(FeatherIcons.Plus, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(Spacing.xs))
-                    Text(stringResource(R.string.workspace_new))
+                    Text(createWorkspaceLabel)
                 }
             }
 
             if (workspaces.isEmpty()) {
                 Text(
-                    stringResource(R.string.workspace_empty_hint),
+                    stringResource(R.string.workspace_empty_hint, createWorkspaceLabel),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = Spacing.md)
@@ -389,6 +392,7 @@ private fun WorkspaceSheet(
 
     if (showCreateDialog) {
         CreateWorkspaceDialog(
+            title = createWorkspaceLabel,
             existingNames = workspaces.map { it.name },
             onConfirm = {
                 onCreate(it)
@@ -513,6 +517,7 @@ private fun WorkspaceRow(
 
 @Composable
 private fun CreateWorkspaceDialog(
+    title: String,
     existingNames: List<String>,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
@@ -524,7 +529,7 @@ private fun CreateWorkspaceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.workspace_new_workspace)) },
+        title = { Text(title) },
         text = {
             Column {
                 AppTextField(
