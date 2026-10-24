@@ -12,10 +12,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 子代理事件类型。前四种为生命周期事件；后两种为收发消息事件，只投递内容，不影响活跃集合。
+ * 子代理事件类型。前五种为生命周期事件；后两种为收发消息事件，只投递内容，不影响活跃集合。
  */
 enum class SubAgentEventType {
     SPAWNED, COMPLETED, FAILED, STOPPED,
+
+    /**
+     * 子代理会话已被 task(action="del") 删除（含全部消息）。与 STOPPED 的区别：
+     * 收集方不得再给该会话补送通知/起后续轮次（会话已不存在，只会烧一轮 LLM 并落孤儿消息），
+     * 而应清掉其全部运行时状态。
+     */
+    DELETED,
 
     /** 主会话向子代理发来一条消息（发送方是父会话）。 */
     MESSAGE_FROM_PARENT,
@@ -118,7 +125,8 @@ class SubAgentEventBus @Inject constructor() {
                     _activeSubSessionIds.update { it + event.subSessionId }
                     reservedSlots = (reservedSlots - 1).coerceAtLeast(0)
                 }
-                SubAgentEventType.COMPLETED, SubAgentEventType.FAILED, SubAgentEventType.STOPPED -> {
+                SubAgentEventType.COMPLETED, SubAgentEventType.FAILED,
+                SubAgentEventType.STOPPED, SubAgentEventType.DELETED -> {
                     _activeSubSessionIds.update { it - event.subSessionId }
                 }
                 SubAgentEventType.MESSAGE_FROM_PARENT, SubAgentEventType.MESSAGE_FROM_SUB -> {

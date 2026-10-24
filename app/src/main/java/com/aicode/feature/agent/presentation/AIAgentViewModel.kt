@@ -1332,7 +1332,8 @@ class AIAgentViewModel @Inject constructor(
         // 订阅子代理生命周期事件（类比 terminal 的 notify=true 异步回调）：
         // - SPAWNED：task 工具已创建子会话并替用户发消息，这里在子会话上自动启动 AI 工作流；
         // - STOPPED：task(action="stop") 请求停止子代理，取消对应会话的 AI 任务；
-        // - COMPLETED/FAILED：由子会话工作流结束时发出（见 handleSubAgentFinished），注入父会话通知。
+        // - COMPLETED/FAILED：由子会话工作流结束时发出（见 handleSubAgentFinished），注入父会话通知；
+        // - DELETED：task(action="del") 已删库，只清运行时状态，不做任何停止收尾。
         viewModelScope.launch {
             subAgentEventBus.events.collect { event ->
                 when (event.type) {
@@ -1343,6 +1344,12 @@ class AIAgentViewModel @Inject constructor(
                     SubAgentEventType.STOPPED -> {
                         markSubAgentFinished(event.subSessionId, SubAgentCardStatus.STOPPED)
                         stopAgentSession(event.subSessionId)
+                    }
+                    SubAgentEventType.DELETED -> {
+                        // 不能走 stopAgentSession：它的收尾会往已删除会话落「已停止」占位消息，
+                        // 取消中 job 的 finally 也会对着不存在的会话补送通知、烧一轮 LLM。
+                        markSubAgentFinished(event.subSessionId, SubAgentCardStatus.STOPPED)
+                        clearSessionRuntimeState(event.subSessionId)
                     }
                     SubAgentEventType.COMPLETED, SubAgentEventType.FAILED -> {
                         enqueueSubAgentNotification(event)
@@ -2407,6 +2414,28 @@ class AIAgentViewModel @Inject constructor(
 
     // region 会话管理
 
+    /**
+     * 清掉一个会话的全部运行时状态（并发名额、通知队列、待发请求、job、流式/工具占位）。
+     * UI 删除与 task(action="del") 共用的收尾：不清的话，取消中 job 的 finally 会对着
+     * 已删除的会话补送通知或执行队列下一条——白烧一轮 LLM、往不存在的会话落孤儿消息。
+     */
+    private fun clearSessionRuntimeState(sessionId: String) {
+        subAgentEventBus.release(sessionId)
+        // 先清队列再取消 job：cancel 可能在调用栈内同步跑 finally → flushPendingNotifications，
+        // 队列已空则直接返回，不会为已删除会话再起一轮。
+        agentNotificationCenter.clear(sessionId)
+        _queuedRequests.value = _queuedRequests.value - sessionId
+        sessionJobs[sessionId]?.cancel()
+        sessionJobs.remove(sessionId)
+        _agentStates.value = _agentStates.value - sessionId
+        _streamingTexts.value = _streamingTexts.value - sessionId
+        setStreamingReasoning(sessionId, null)
+        _runningTools.value = _runningTools.value - sessionId
+        _retryStates.value = _retryStates.value - sessionId
+        _inputDrafts.value = _inputDrafts.value - sessionId
+        draftPrefs.edit().remove(sessionId).apply()
+    }
+
     /** 新建会话；工作区里已有空会话时直接切过去复用（当前会话为空则优先），避免堆积空会话。 */
     fun newSession() = viewModelScope.launch {
         val ws = _currentWorkspace.value
@@ -2847,19 +2876,7 @@ class AIAgentViewModel @Inject constructor(
         }
 
         allDeletedIds.forEach { sid ->
-            subAgentEventBus.release(sid)
-            agentNotificationCenter.clear(sid)
-            _queuedRequests.value = _queuedRequests.value - sid
-            sessionJobs[sid]?.cancel()
-            sessionJobs.remove(sid)
-            _agentStates.value = _agentStates.value - sid
-            _streamingTexts.value = _streamingTexts.value - sid
-            setStreamingReasoning(sid, null)
-            _runningTools.value = _runningTools.value - sid
-            _retryStates.value = _retryStates.value - sid
-            _queuedRequests.value = _queuedRequests.value - sid
-            _inputDrafts.value = _inputDrafts.value - sid
-            draftPrefs.edit().remove(sid).apply()
+            clearSessionRuntimeState(sid)
         }
 
         if (_currentSessionId.value in allDeletedIds) {
@@ -2887,19 +2904,7 @@ class AIAgentViewModel @Inject constructor(
         val deletedIds = sessionUseCase.deleteSession(id)
 
         deletedIds.forEach { sid ->
-            subAgentEventBus.release(sid)
-            agentNotificationCenter.clear(sid)
-            _queuedRequests.value = _queuedRequests.value - sid
-            sessionJobs[sid]?.cancel()
-            sessionJobs.remove(sid)
-            _agentStates.value = _agentStates.value - sid
-            _streamingTexts.value = _streamingTexts.value - sid
-            setStreamingReasoning(sid, null)
-            _runningTools.value = _runningTools.value - sid
-            _retryStates.value = _retryStates.value - sid
-            _queuedRequests.value = _queuedRequests.value - sid
-            _inputDrafts.value = _inputDrafts.value - sid
-            draftPrefs.edit().remove(sid).apply()
+            clearSessionRuntimeState(sid)
         }
 
         if (_currentSessionId.value in deletedIds) {

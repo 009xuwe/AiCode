@@ -554,11 +554,13 @@ class TaskTool @Inject constructor(
             return ToolResult.Error("只能删除当前会话派生的子代理", "NOT_YOUR_SUBAGENT")
         }
         if (eventBus.activeSubSessionIds.value.contains(subSessionId)) {
+            // 用 DELETED 而非 STOPPED：会话马上被删库，收集方须清运行时状态而不是走停止收尾，
+            // 否则取消中的 job 会对着已删除的会话补送通知（白烧一轮 LLM、落孤儿消息）。
             eventBus.emit(
                 SubAgentEvent(
                     subSessionId = subSessionId,
                     parentSessionId = context.sessionId!!,
-                    type = SubAgentEventType.STOPPED
+                    type = SubAgentEventType.DELETED
                 )
             )
         }
