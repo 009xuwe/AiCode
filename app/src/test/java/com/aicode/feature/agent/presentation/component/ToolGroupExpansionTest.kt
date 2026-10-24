@@ -55,8 +55,32 @@ class ToolGroupExpansionTest {
         )
         assertEquals(1, rendered.count { it.turnHeader != null })
         assertEquals("turn:u0", rendered.header().turnHeader?.key)
-        assertTrue(rendered.any { it.message.id == "marker" })
-        assertTrue(rendered.any { it.message.id == "summary" })
+        // 压缩卡片随过程折叠：挂在轮头过程项里，不占顶层 item
+        assertTrue(rendered.header().turnProcess.any { it.message.id == "marker" })
+        assertTrue(rendered.header().turnProcess.any { it.message.id == "summary" })
+    }
+
+    @Test
+    fun backgroundNotification_foldsIntoTurnProcess() {
+        // 后台完成通知是过程性提示：随整轮折叠收起，不再常驻；带附件的工具仍常显
+        val notice = AgentUIMessage(id = "n1", role = MessageRole.USER, content = "done")
+            .copy(isBackgroundNotification = true)
+        val messages = listOf(user("u0"), tool("t1"), notice, assistant("answer"))
+        val rendered = items(messages, turnOverrides = mapOf("turn:u0" to true))
+        assertFalse("后台通知折进过程", rendered.any { it.key == "n1" })
+        assertTrue(rendered.header().turnProcess.any { it.key == "n1" })
+        assertTrue("结果正文仍常显", rendered.any { it.key == "answer" })
+    }
+
+    @Test
+    fun trailingCompactionSummary_isNotPickedAsResult() {
+        // 压缩摘要是 ASSISTANT 角色：不得被选为轮「结果」，否则真正的回复正文会被折进过程
+        val summary = assistant("summary").copy(isContextSummary = true)
+        val messages = listOf(user("u0"), tool("t1"), assistant("answer"), summary)
+        val rendered = items(messages)
+        assertTrue("回复正文仍是结果", rendered.any { it.key == "answer" })
+        assertFalse("摘要折进过程", rendered.any { it.key == "summary" })
+        assertTrue(rendered.header().turnProcess.any { it.key == "summary" })
     }
 
     // ---- 连续工具调用分组 ----
@@ -291,8 +315,8 @@ class ToolGroupExpansionTest {
     }
 
     @Test
-    fun truncatedWindow_persistentLeadingStaysTopLevel() {
-        // 压缩卡片 / 后台通知 / 带附件工具在这一截里同样不参与折叠
+    fun truncatedWindow_notificationFoldsIntoLeadingProcess() {
+        // 后台通知随过程折叠：折进这一截的折叠头里，不占顶层 item
         val notice = AgentUIMessage(id = "n1", role = MessageRole.USER, content = "done")
             .copy(isBackgroundNotification = true)
         val messages = listOf(
@@ -302,8 +326,10 @@ class ToolGroupExpansionTest {
             user("u0"),
         )
         val rendered = items(messages)
-        assertTrue("后台通知常显", rendered.any { it.key == "n1" })
-        assertEquals("turn:head:n1", rendered.first { it.turnHeader != null }.turnHeader!!.key)
+        assertFalse("后台通知折进过程", rendered.any { it.key == "n1" })
+        val head = rendered.first { it.turnHeader != null }
+        assertEquals("turn:head:n1", head.turnHeader!!.key)
+        assertTrue(head.turnProcess.any { it.key == "n1" })
     }
 
     @Test

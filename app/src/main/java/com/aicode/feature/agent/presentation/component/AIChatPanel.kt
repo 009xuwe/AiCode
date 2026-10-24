@@ -325,7 +325,8 @@ internal fun reconcileTurnKeys(
  *
  * 先按「用户消息 → 下一个用户消息之前」切成轮（见 [splitChatTurns]）：每轮依次产出「用户消息 →
  * 轮头（携带过程项，仅当该轮有过程或正在运行）→ 常显项与结果」。过程项先归入轮头，展开时转换为
- * 独立列表项；压缩摘要/后台通知/带附件工具等常显项不参与折叠。
+ * 独立列表项；只有带附件的工具常显（见 [isPersistentInTurn]），后台通知与压缩卡片属过程性提示、
+ * 随过程折叠。
  * 结果 = 轮内最后一条有可见正文的普通助手消息（其思考抽为过程项）。
  *
  * 轮首之前剩下的散消息同样按「一轮过程」处理：消息按条数截断加载，窗口边界常切在某一轮中间，
@@ -378,7 +379,7 @@ internal fun buildChatItems(
     for (turn in turns) {
         items += messageRenderItems(turn.userMessage)
         val endAssistant = turn.messages.lastOrNull {
-            it.role == MessageRole.ASSISTANT && !it.isPersistentInTurn()
+            it.role == MessageRole.ASSISTANT && !it.isSystemCardInTurn()
         }
         val stableTurnKey = turnKeys[turn.userMessage.id] ?: turn.key
         val running = stableTurnKey == activeTurnKey
@@ -464,20 +465,33 @@ private fun splitChatTurns(messages: List<AgentUIMessage>): Pair<List<AgentUIMes
     return leading to turns
 }
 
-/** 该消息在整轮折叠里是否「常显」——不参与过程折叠，无论轮展开与否都显示。 */
+/**
+ * 该消息在整轮折叠里是否「常显」——不参与过程折叠，无论轮展开与否都显示。
+ *
+ * 仅限带附件的工具（sendFile / generateImage 产出的文件行）：文件就是结果本身，折进
+ * 「N 次工具调用」或整轮折叠等于把产出物藏起来。后台通知与压缩卡片是过程性提示，
+ * 随过程一起折叠（见 [isSystemCardInTurn]）。
+ */
 private fun AgentUIMessage.isPersistentInTurn(): Boolean =
-    isCompactionMarker || isContextSummary || isCompactionFailure || isBackgroundNotification ||
-        (role == MessageRole.TOOL && attachments.isNotEmpty())
-
-/** 能否作为一轮的「结果」：最后一条有可见正文的普通助手消息。 */
-private fun AgentUIMessage.isResultCandidate(): Boolean =
-    role == MessageRole.ASSISTANT && !isPersistentInTurn() && content.hasVisibleContent()
+    role == MessageRole.TOOL && attachments.isNotEmpty()
 
 /**
- * 轮内「过程」项（保持原序）：思考、连续工具调用分组、中间助手正文。挂在轮头 item 内一起展开。
+ * 系统注入的卡片型消息（后台通知条 / 压缩标记·摘要·失败）：折进轮过程，且不得被选为
+ * 轮「结果」或轮末耗时锚点——压缩摘要是 ASSISTANT 角色，不排除会顶掉真正的回复正文。
+ */
+private fun AgentUIMessage.isSystemCardInTurn(): Boolean =
+    isCompactionMarker || isContextSummary || isCompactionFailure || isBackgroundNotification
+
+/** 能否作为一轮的「结果」：最后一条有可见正文的普通助手消息（系统卡片不算，见 [isSystemCardInTurn]）。 */
+private fun AgentUIMessage.isResultCandidate(): Boolean =
+    role == MessageRole.ASSISTANT && !isSystemCardInTurn() && content.hasVisibleContent()
+
+/**
+ * 轮内「过程」项（保持原序）：思考、连续工具调用分组、中间助手正文、后台通知条与压缩卡片。
+ * 挂在轮头 item 内一起展开。
  *
- * 结果消息的思考归过程（抽为一个 [REASONING_CONTENT_TYPE] 项）；压缩摘要/后台通知/带附件工具等
- * 常显项不进过程，由 [buildTurnPersistentItems] 单独产出。
+ * 结果消息的思考归过程（抽为一个 [REASONING_CONTENT_TYPE] 项）；带附件工具常显、
+ * 不进过程，由 [buildTurnPersistentItems] 单独产出。
  */
 private fun buildTurnProcessItems(
     messages: List<AgentUIMessage>,
@@ -528,7 +542,7 @@ private fun buildTurnProcessItems(
     return out
 }
 
-/** 轮内「常显」项（保持原序）：结果正文（拆块，不重复渲染思考）与压缩卡片/通知/带附件工具。 */
+/** 轮内「常显」项（保持原序）：结果正文（拆块，不重复渲染思考）与带附件的工具行。 */
 private fun buildTurnPersistentItems(
     messages: List<AgentUIMessage>,
     resultId: String?,
