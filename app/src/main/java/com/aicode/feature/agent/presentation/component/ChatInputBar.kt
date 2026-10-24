@@ -1174,7 +1174,8 @@ internal fun PlanApprovalPanel(
     state: PlanApprovalRequest,
     onApprove: () -> Unit,
     onRefine: () -> Unit,
-    forceCollapse: Boolean = false
+    forceCollapse: Boolean = false,
+    sessionTitle: String = ""
 ) {
     var expanded by remember { mutableStateOf(true) }
     // 余额面板展开时同帧收起本面板，避免叠加顶开输入框
@@ -1224,6 +1225,17 @@ internal fun PlanApprovalPanel(
                 exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
             ) {
                 Column {
+                    // 多会话并行时标注这份计划属于哪个会话，避免用户批错对象
+                    if (sessionTitle.isNotBlank()) {
+                        Text(
+                            text = stringResource(R.string.chat_perm_session_label, sessionTitle),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(Spacing.xs))
+                    }
                     if (state.reason.isNotBlank()) {
                         Spacer(Modifier.height(Spacing.xs))
                         SelectionContainer {

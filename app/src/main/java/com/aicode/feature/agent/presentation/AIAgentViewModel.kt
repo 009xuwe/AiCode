@@ -1026,6 +1026,19 @@ class AIAgentViewModel @Inject constructor(
         title.orEmpty()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
+    /** 当前展示的计划审批面板所属会话标题（多会话并行时供面板标注归属，避免批错会话）。 */
+    val pendingPlanApprovalSessionTitle: StateFlow<String> = combine(
+        planApprovalManager.pendingApproval,
+        sessions,
+        subSessionsByParent
+    ) { req, roots, subs ->
+        val sid = req?.sessionId.orEmpty()
+        if (sid.isBlank()) return@combine ""
+        val title = roots.firstOrNull { it.id == sid }?.title
+            ?: subs.values.asSequence().flatten().firstOrNull { it.id == sid }?.title
+        title.orEmpty()
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
     /** 正在等待用户授权的会话 id 集合，供侧边栏会话行点亮橙色指示灯。 */
     val awaitingPermissionSessionIds: StateFlow<Set<String>> = toolPermissionManager.awaitingSessionIds
 
@@ -2855,14 +2868,18 @@ class AIAgentViewModel @Inject constructor(
         sessionJobs[sid] = job
     }
 
-    /** 用户批准计划，唤醒 workflow 继续在 BUILD 模式执行。 */
-    fun approvePlanAndBuild() {
-        planApprovalManager.resolve(PlanApprovalChoice.APPROVE)
+    /**
+     * 用户批准计划，唤醒 workflow 继续在 BUILD 模式执行。
+     * 绑定请求 id：多会话下面板展示的可能是较早挂起的请求，隐式取队列头会批错对象；
+     * 过期 id（已被通知路径解决）在 Manager 侧是 no-op。
+     */
+    fun approvePlanAndBuild(id: String) {
+        planApprovalManager.resolve(id, PlanApprovalChoice.APPROVE)
     }
 
-    /** 用户选择继续反馈，唤醒 workflow 回滚到 PLAN 模式。 */
-    fun refinePlan() {
-        planApprovalManager.resolve(PlanApprovalChoice.REFINE)
+    /** 用户选择继续反馈，唤醒 workflow 回滚到 PLAN 模式。绑定请求 id，理由同 [approvePlanAndBuild]。 */
+    fun refinePlan(id: String) {
+        planApprovalManager.resolve(id, PlanApprovalChoice.REFINE)
     }
 
     fun selectSession(id: String) {

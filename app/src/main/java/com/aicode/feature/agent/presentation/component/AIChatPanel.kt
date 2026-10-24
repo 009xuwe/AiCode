@@ -1751,11 +1751,14 @@ fun AIChatPanel(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 planForPanel?.let { state ->
+                    val planApprovalSessionTitle by viewModel.pendingPlanApprovalSessionTitle
+                        .collectAsStateWithLifecycle()
                     PlanApprovalPanel(
                         state = state,
-                        onApprove = { viewModel.approvePlanAndBuild() },
-                        onRefine = { viewModel.refinePlan() },
-                        forceCollapse = dashboardCollapseActive
+                        onApprove = { viewModel.approvePlanAndBuild(state.id) },
+                        onRefine = { viewModel.refinePlan(state.id) },
+                        forceCollapse = dashboardCollapseActive,
+                        sessionTitle = planApprovalSessionTitle
                     )
                 }
             }
