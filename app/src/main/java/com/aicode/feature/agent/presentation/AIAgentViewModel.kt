@@ -2289,7 +2289,15 @@ class AIAgentViewModel @Inject constructor(
         // 不会发 COMPLETED/FAILED 事件，不释放的话名额一直占到进程重启，
         // 之后任何会话都无法再派子代理。不通知父会话——切换工作区是用户主动停一切，
         // 父会话自身也在被停之列，通知只会触发已停会话的无谓新一轮。
-        subAgentEventBus.activeSubSessionIds.value.toList().forEach { subAgentEventBus.release(it) }
+        val activeSubIds = subAgentEventBus.activeSubSessionIds.value.toList()
+        activeSubIds.forEach { subAgentEventBus.release(it) }
+        // 同理，被取消的子代理也不会有终态事件：不就地落卡片状态的话，
+        // 父会话聊天流里的派发卡片会永远显示「运行中」，直到进程重启。
+        activeSubIds.forEach { id ->
+            if (_subAgentCards.value.containsKey(id)) {
+                markSubAgentFinished(id, SubAgentCardStatus.STOPPED)
+            }
+        }
         jobs.forEach { it.cancel() }
         sessionJobs.clear()
         _runningCommandSessions.value = emptySet()
