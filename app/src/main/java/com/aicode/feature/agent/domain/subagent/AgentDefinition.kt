@@ -75,14 +75,22 @@ data class AgentDefinition(
      *
      * 黑名单先生效，再与白名单取交集；支持 `mcp__server__*` 形式的通配，
      * 以便一次禁掉某个 MCP server 的全部工具。
+     *
+     * `messageParent` 不受白名单约束、默认保留（除非被黑名单显式禁用）：子代理基线
+     * 提示词指导它受阻时用该工具协调，白名单忘了列它会让提示词教模型调用一个
+     * 不存在的工具。它只向父会话发消息，无写权限风险。
      */
     fun filterToolNames(all: List<String>): List<String> =
-        all.filter { allowsTool(it) }.filterNot { it == NESTED_TOOL }
+        all.filter { allowsTool(it) || (it == PARENT_MESSAGE_TOOL && !isDenied(it)) }
+            .filterNot { it == NESTED_TOOL }
 
     /** 该定义是否允许 [toolName]：[filterToolNames] 与 [capabilitySummary] 共用同一判定，不维护第二套配置。 */
     fun allowsTool(toolName: String): Boolean =
-        disallowedTools.none { matches(it, toolName) } &&
-            (allowedTools.isEmpty() || allowedTools.any { matches(it, toolName) })
+        !isDenied(toolName) && (allowedTools.isEmpty() || allowedTools.any { matches(it, toolName) })
+
+    /** [toolName] 是否被黑名单（含通配）命中。 */
+    private fun isDenied(toolName: String): Boolean =
+        disallowedTools.any { matches(it, toolName) }
 
     /**
      * 派发前给主代理看的能力摘要（读 / 写 / 命令三个维度）。
@@ -129,9 +137,13 @@ data class AgentDefinition(
         /** 仅子代理可用的工具（子→主发消息）；主会话工具集剔除它。 */
         const val PARENT_MESSAGE_TOOL = "messageParent"
 
-        /** [capabilitySummary] 的能力分组：新增同类工具时补进对应组，摘要才不会漏判。 */
+        /**
+         * [capabilitySummary] 的能力分组：新增同类工具时补进对应组，摘要才不会漏判。
+         * browser 归入写组：浏览器自动化（点击/填表）在 PLAN 下同样被拦截。
+         * MCP 动态工具（`mcp__*`）性质未知，不归组——定义绑定 MCP 时以描述文本为准。
+         */
         private val READ_TOOLS = setOf("readFile", "list", "search", "viewImage")
-        private val WRITE_TOOLS = setOf("writeFile", "editFile", "generateImage")
+        private val WRITE_TOOLS = setOf("writeFile", "editFile", "generateImage", "browser")
         private val EXEC_TOOLS = setOf("Bash", "terminal", "Shizuku")
     }
 }

@@ -170,6 +170,30 @@ class ToolPermissionPolicyEngineTest {
         assertEquals(ToolPermissionPolicyEngine.Verdict.DENY, r.verdict)
     }
 
+    // ── task 的 del（删除子会话及消息）不可逆：单次确认，不受 ALWAYS 记忆放行 ──
+
+    @Test
+    fun taskDeleteAction_asksUnrememberableEvenWithWholeAllow() = runTest {
+        // 用户此前对 task 选过「始终允许」（create/stop 落下的记忆）——不得连带放行删除
+        val e = engine(
+            PermissionRule("task", PermissionRule.WHOLE_TOOL, PermissionDecision.ALLOW)
+        )
+        val r = e.evaluate(tool(ToolCapability.MODIFY_SESSION_STATE), "task", terminal("del"), AgentMode.BUILD)
+
+        assertEquals(ToolPermissionPolicyEngine.Verdict.ASK, r.verdict)
+        assertTrue("删除不可记忆，必须逐次确认", r.rememberablePatterns.isEmpty())
+        assertNotNull(r.rememberDisabledReason)
+    }
+
+    @Test
+    fun taskDeleteAction_deniedWhenWholeRuleDenies() = runTest {
+        val e = engine(
+            PermissionRule("task", PermissionRule.WHOLE_TOOL, PermissionDecision.DENY)
+        )
+        val r = e.evaluate(tool(ToolCapability.MODIFY_SESSION_STATE), "task", terminal("del"), AgentMode.BUILD)
+        assertEquals(ToolPermissionPolicyEngine.Verdict.DENY, r.verdict)
+    }
+
     // ── DENY 优先于内置白名单 ───────────────────────────────────────
 
     @Test

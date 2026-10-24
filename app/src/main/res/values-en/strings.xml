@@ -40,6 +40,7 @@
     <string name="tool_subagent_tier_pinned">This subagent pins its model (%1$s), so the requested "%2$s" tier was ignored.</string>
     <string name="tool_subagent_tier_fallback">The requested "%1$s" tier is not configured or its provider is unavailable; using the "%2$s" tier (%3$s) instead.</string>
     <string name="tool_subagent_tier_unavailable">The requested "%1$s" tier is not configured or its provider is unavailable; this subagent will inherit the current session model.</string>
+    <string name="tool_subagent_provider_unresolved">The provider "%1$s" in this subagent definition was not found (missing or name mismatch); the parent session provider will be combined with the definition model "%2$s", which may not be callable.</string>
     <!-- Subagent model tiers -->
     <string name="settings_subagent_tiers_header">Subagent model tiers</string>
     <string name="settings_subagent_tier_light">Light</string>

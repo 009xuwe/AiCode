@@ -53,10 +53,12 @@ class ToolPermissionPolicyEngine @Inject constructor(
 
         /**
          * 合并后的子代理工具：只读与发消息操作（read/list/send）自动放行，无需弹窗；
-         * 写操作（create/stop）走正常规则评估。
+         * 写操作（create/stop）走正常规则评估；del（删除子会话及全部消息）不可逆，
+         * 只支持单次放行，不落入「始终允许」记忆——否则一次 ALWAYS 会让后续删除全部静默。
          */
         const val TASK_TOOL = "task"
         private val TASK_AUTO_ACTIONS = setOf("read", "list", "send")
+        private const val TASK_DELETE_ACTION = "del"
 
         /**
          * 浏览器工具：navigate/click/fill/select/evaluate/dialog/back/forward/reload/newTab/closeTab/selectTab 为写操作（PLAN 拦截），
@@ -156,16 +158,28 @@ class ToolPermissionPolicyEngine @Inject constructor(
             return EvalResult(Verdict.ALLOW, emptyList())
         }
 
-        // task 只读动作（read/list）：不放行 DENY 规则，其余直接自动放行（不弹窗）。
         if (toolName == TASK_TOOL) {
             val action = (args["action"] as? JsonPrimitive)?.content?.trim()?.lowercase() ?: "create"
+            // 只读与发消息动作（read/list/send）：不放行 DENY 规则，其余直接自动放行（不弹窗）。
             if (action in TASK_AUTO_ACTIONS) {
                 val rules = rulesRepo.loadEffectiveForCurrentProject().filter { it.toolName == toolName }
-                val whole = rules.filter { it.pattern == PermissionRule.WHOLE_TOOL }
-                if (whole.any { it.decision == PermissionDecision.DENY }) {
+                if (rules.any { it.pattern == PermissionRule.WHOLE_TOOL && it.decision == PermissionDecision.DENY }) {
                     return EvalResult(Verdict.DENY, emptyList(), denyReason = appContext.getString(R.string.tool_permission_rule_denied))
                 }
                 return EvalResult(Verdict.ALLOW, emptyList())
+            }
+            if (action == TASK_DELETE_ACTION) {
+                // 删除子会话及其全部消息不可逆：尊重显式 DENY，其余一律单次确认，不提供
+                // 「始终允许」——create/stop 落下的 ALWAYS 记忆不得连带放行删除。
+                val rules = rulesRepo.loadEffectiveForCurrentProject().filter { it.toolName == toolName }
+                if (rules.any { it.pattern == PermissionRule.WHOLE_TOOL && it.decision == PermissionDecision.DENY }) {
+                    return EvalResult(Verdict.DENY, emptyList(), denyReason = appContext.getString(R.string.tool_permission_rule_denied))
+                }
+                return EvalResult(
+                    Verdict.ASK,
+                    rememberablePatterns = emptyList(),
+                    rememberDisabledReason = "删除子代理会话及其消息不可逆，仅支持单次放行"
+                )
             }
         }
 

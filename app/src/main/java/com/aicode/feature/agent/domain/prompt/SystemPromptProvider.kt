@@ -81,25 +81,29 @@ class SystemPromptProvider @Inject constructor(
 
     /** 子代理专用精简基线：只保留工具用法、路径约定与安全边界，不含模式切换、结尾总结等主代理专属规则。 */
     private inner class SubAgentBaseSource : PromptSource {
-        @Volatile private var cached: String? = null
-
+        // 每次读盘：与静态基线同理，未编辑时内容一致不影响 KV 缓存，编辑 subagent-base.md 后立即生效。
         override fun build(ctx: AgentContext): String =
-            cached ?: resolvePrompt(SUBAGENT_BASE_FILE)
+            resolvePrompt(SUBAGENT_BASE_FILE)
                 .replace(LEADING_COMMENT, "")
                 .trim()
-                .also { cached = it }
     }
 
     /**
      * 可用子代理清单（仅注入主代理）：让 AI 知道有哪些自定义 agent 可派发。
      * 会话级缓存，避免每轮扫盘导致 system prompt 抖动打断 KV 缓存。
+     * 缓存 key 带定义版本：设置页里新建/编辑/启停子代理后，下一轮即可见，不必开新会话。
      */
     private inner class SubAgentListSource : PromptSource {
         private val cachedByKey = ConcurrentHashMap<SourceCacheKey, String>()
 
         override fun build(ctx: AgentContext): String? {
             // key 里带 mode：能力摘要随模式变化（PLAN 下写/命令不可用），切换模式必须重建缓存。
-            val key = SourceCacheKey(ctx.sessionId, ctx.projectRoot, ctx.mode)
+            val key = SourceCacheKey(
+                ctx.sessionId,
+                ctx.projectRoot,
+                ctx.mode,
+                agentDefinitionRepository.definitionsVersion
+            )
             val cached = cachedByKey[key]
             if (cached != null) return cached.ifEmpty { null }
             val entries = try {
@@ -229,12 +233,14 @@ class SystemPromptProvider @Inject constructor(
     /**
      * 会话级缓存 key：同一会话同一工作区共享一份快照，避免每轮重扫磁盘导致 system prompt 变化。
      *
-     * [mode] 只有内容依赖模式的来源才传（子代理清单的能力摘要），其余来源留 null 以免白白碎片化缓存。
+     * [mode] 只有内容依赖模式的来源才传（子代理清单的能力摘要）；
+     * [definitionVersion] 只有子代理清单传（定义变更后失效缓存），其余来源留默认值以免白白碎片化缓存。
      */
     private data class SourceCacheKey(
         val sessionId: String?,
         val projectRoot: String,
-        val mode: AgentMode? = null
+        val mode: AgentMode? = null,
+        val definitionVersion: Long = 0
     )
 
     private val staticRuleSource = StaticRuleSource()
@@ -345,7 +351,9 @@ class SystemPromptProvider @Inject constructor(
                 activeSkillsSource.build(agentContext),
                 memories.global,
                 memories.project,
-                subAgentListSource.build(agentContext),
+                // 可用子代理清单不注入子代理（无嵌套派发），此处恒为空，防止定义正文
+                // 里写 {{AICODE_SUBAGENTS}} 把清单漏给不该看到它的子代理
+                null,
                 projectRules?.global,
                 projectRules?.project,
                 workspaceSource.build(agentContext),

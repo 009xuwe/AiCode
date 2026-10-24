@@ -14,14 +14,19 @@ internal object AgentDefinitionDirectoryScanner {
 
     /**
      * 扫描 [root] 下顶层 `*.md`，每个文件一个定义。目录不存在时返回空列表；
-     * 扫描过程异常（IO 失败、远程工作区未连接等）时降级为空列表并记日志，不向上抛。
+     * 单个文件解析异常（IO 失败、frontmatter 非法等）只跳过该文件，不拖垮整个目录；
+     * 扫描过程整体异常（远程工作区未连接等）时降级为空列表并记日志，不向上抛。
      */
     fun scan(provider: FileAccessProvider, root: String): List<AgentDefinition> = runCatching {
         if (!provider.isDirectory(root)) return@runCatching emptyList()
         val base = root.trimEnd('/')
         provider.listFiles(root)
             .filter { !it.isDirectory && it.name.endsWith(".md", ignoreCase = true) }
-            .mapNotNull { entry -> AgentDefinitionParser.parse(provider, "$base/${entry.name}") }
+            .mapNotNull { entry ->
+                runCatching { AgentDefinitionParser.parse(provider, "$base/${entry.name}") }
+                    .onFailure { FileLogger.w(TAG, "解析子代理定义失败，已跳过: ${entry.name}", it) }
+                    .getOrNull()
+            }
             .sortedBy { it.name.lowercase() }
     }.getOrElse { e ->
         FileLogger.w(TAG, "扫描子代理定义目录失败: $root", e)

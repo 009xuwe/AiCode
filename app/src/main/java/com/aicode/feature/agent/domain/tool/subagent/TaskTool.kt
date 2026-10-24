@@ -19,6 +19,7 @@ import com.aicode.feature.agent.domain.subagent.ResolvedSubagentModel
 import com.aicode.feature.agent.domain.subagent.SubagentModelFallback
 import com.aicode.feature.agent.domain.subagent.SubagentModelResolver
 import com.aicode.feature.agent.domain.subagent.SubagentModelTier
+import com.aicode.feature.agent.domain.subagent.SubagentTierSelection
 import com.aicode.feature.agent.domain.tool.AbstractContextualTool
 import com.aicode.feature.agent.domain.tool.ParameterType
 import com.aicode.feature.agent.domain.tool.ToolCapability
@@ -89,7 +90,7 @@ class TaskTool @Inject constructor(
         }
     }
 
-    override val description = "管理子代理：创建、发消息、读取结果、停止、删除、列出。子代理拥有独立上下文，按所选代理的工具集工作，不能嵌套创建子代理；最多同时运行 5 个。任务完成后会通知主会话，无需轮询；运行中也可能主动发消息。用 send 可追加指令或继续追问已完成的子代理。创建时可用 tier 按任务难度选择模型档位（light 只读探索与机械活 / standard 单文件修改与常规修复 / strong 跨模块重构与疑难排查）；档位是否可用取决于用户在设置里的配置，未配置时按继承处理。"
+    override val description = "管理子代理：创建、发消息、读取结果、停止、删除、列出。子代理拥有独立上下文，按所选代理的工具集工作，不能嵌套创建子代理；全局最多同时运行 5 个（所有会话共享名额）。任务完成后会通知主会话，无需轮询；运行中也可能主动发消息。用 send 可追加指令或继续追问已完成的子代理。创建时可用 tier 按任务难度选择模型档位（light 只读探索与机械活 / standard 单文件修改与常规修复 / strong 跨模块重构与疑难排查）；档位是否可用取决于用户在设置里的配置，未配置时按继承处理。"
 
     override val parameters: Map<String, ToolParameter> = mapOf(
         "action" to ToolParameter(
@@ -233,77 +234,116 @@ class TaskTool @Inject constructor(
             return ToolResult.Error("参数无效：未提供任何有效的子代理任务", "INVALID_ARGS")
         }
 
-        // 检查并发上限
-        val currentRunning = eventBus.activeSubSessionIds.value.size
-        if (currentRunning + specs.size > SubAgentEventBus.MAX_RUNNING) {
+        // 预检查指定的 agent 是否都存在（一次扫描本地匹配，避免逐任务重复读盘）
+        val enabledDefinitions = agentDefinitionRepository.listEnabled()
+        val definitions = mutableMapOf<SubagentTaskSpec, AgentDefinition?>()
+        for (spec in specs) {
+            if (spec.agent == null) {
+                definitions[spec] = null
+                continue
+            }
+            val def = enabledDefinitions.firstOrNull {
+                it.definition.name.equals(spec.agent, ignoreCase = true)
+            }?.definition
+            if (def == null) {
+                val available = enabledDefinitions.map { it.definition.name }
+                val hint = if (available.isEmpty()) "当前未定义任何自定义子代理" else "可用：${available.joinToString(", ")}"
+                return ToolResult.Error("子代理定义不存在：${spec.agent}（$hint）", "AGENT_NOT_FOUND")
+            }
+            definitions[spec] = def
+        }
+
+        // 并发上限：检查与占位在同一锁内原子完成。同一批工具是并行执行的，
+        // 「先读计数再创建」的写法会让并行的 task(create) 双双通过检查后超额创建。
+        if (!eventBus.tryReserveSlots(specs.size)) {
+            val currentRunning = eventBus.activeCount
             return ToolResult.Error(
-                "子代理已达上限（最多 ${SubAgentEventBus.MAX_RUNNING} 个同时运行，当前已有 $currentRunning 个在运行），无法再同时派发 ${specs.size} 个，请先等待部分完成或用 stop 停止后再创建",
+                "子代理已达上限（全局最多 ${SubAgentEventBus.MAX_RUNNING} 个同时运行，当前已有 $currentRunning 个在运行），无法再同时派发 ${specs.size} 个，请先等待部分完成或用 stop 停止后再创建",
                 "MAX_SUBAGENTS_REACHED"
             )
         }
 
-        // 预检查指定的 agent 是否都存在
-        val definitions = mutableMapOf<SubagentTaskSpec, AgentDefinition?>()
-        for (spec in specs) {
-            if (spec.agent != null) {
-                val def = agentDefinitionRepository.find(spec.agent)
-                if (def == null) {
-                    val available = agentDefinitionRepository.listEnabled().map { it.definition.name }
-                    val hint = if (available.isEmpty()) "当前未定义任何自定义子代理" else "可用：${available.joinToString(", ")}"
-                    return ToolResult.Error("子代理定义不存在：${spec.agent}（$hint）", "AGENT_NOT_FOUND")
-                }
-                definitions[spec] = def
-            } else {
-                definitions[spec] = null
-            }
+        // 批量创建共用的快照：提供商与三档配置只冷读一次，不随任务数放大
+        val allProviders = runCatching { aiProviderRepository.getAllProviders().first() }.getOrDefault(emptyList())
+        val enabledProviderIds = allProviders.filter { it.isEnabled }.map { it.id }.toSet()
+        val tierSelections = runCatching { subagentTierSettings.snapshot() }.getOrDefault(emptyMap())
+        val matchProviderId: (String?) -> String? = { raw ->
+            if (raw.isNullOrBlank()) null
+            else allProviders.firstOrNull { it.id == raw }?.id
+                ?: allProviders.firstOrNull { it.name.equals(raw, ignoreCase = true) }?.id
         }
 
         // 批量创建会话并启动
         val createdList = mutableListOf<CreatedSubagentInfo>()
-        for (spec in specs) {
-            val definition = definitions[spec]
-            val modelBinding = resolveModel(spec.rawArgs, definition)
-            val subSession = sessionUseCase.newSubSessionEntity(
-                title = spec.description,
-                parentId = parentSessionId,
-                parent = parentSession,
-                subagentType = definition?.name ?: DEFAULT_SUBAGENT_TYPE,
-                providerId = modelBinding.providerId ?: definition?.providerId?.let { resolveProviderId(it) },
-                model = modelBinding.model,
-                reasoningEffort = definition?.reasoningEffort?.let { effort ->
-                    ReasoningEffort.entries.firstOrNull { it.apiValue == effort }?.name
-                },
-                mode = definition?.mode
-            )
-            sessionUseCase.upsertSession(subSession)
-            val subSessionId = subSession.id
-
-            eventBus.emit(
-                SubAgentEvent(
-                    subSessionId = subSessionId,
-                    parentSessionId = parentSessionId,
-                    type = SubAgentEventType.SPAWNED,
-                    detail = spec.prompt
+        var pendingReserve = specs.size
+        try {
+            for (spec in specs) {
+                val definition = definitions[spec]
+                val definitionProviderId = matchProviderId(definition?.providerId)
+                val modelBinding = resolveModel(
+                    args = spec.rawArgs,
+                    definition = definition,
+                    definitionProviderId = definitionProviderId,
+                    enabledProviderIds = enabledProviderIds,
+                    tierSelections = tierSelections
                 )
-            )
-            FileLogger.i(TAG, "子代理已创建: session=$subSessionId parent=$parentSessionId agent=${definition?.name ?: "-"}")
+                val subSession = sessionUseCase.newSubSessionEntity(
+                    title = spec.description,
+                    parentId = parentSessionId,
+                    parent = parentSession,
+                    subagentType = definition?.name ?: DEFAULT_SUBAGENT_TYPE,
+                    providerId = modelBinding.providerId,
+                    model = modelBinding.model,
+                    reasoningEffort = definition?.reasoningEffort?.let { effort ->
+                        ReasoningEffort.entries.firstOrNull { it.apiValue == effort }?.name
+                    },
+                    mode = definition?.mode
+                )
+                sessionUseCase.upsertSession(subSession)
+                val subSessionId = subSession.id
 
-            val writeCapped = context.mode == AgentMode.PLAN && (definition?.canModifyOrExecute() ?: true)
-            val warnings = buildList {
-                if (writeCapped) add(appContext.getString(R.string.tool_subagent_plan_readonly_warning))
-                describeModelFallback(modelBinding)?.let { add(it) }
+                eventBus.emit(
+                    SubAgentEvent(
+                        subSessionId = subSessionId,
+                        parentSessionId = parentSessionId,
+                        type = SubAgentEventType.SPAWNED,
+                        detail = spec.prompt
+                    )
+                )
+                pendingReserve--
+                FileLogger.i(TAG, "子代理已创建: session=$subSessionId parent=$parentSessionId agent=${definition?.name ?: "-"}")
+
+                val writeCapped = context.mode == AgentMode.PLAN && (definition?.canModifyOrExecute() ?: true)
+                val warnings = buildList {
+                    // 定义写了 provider 却解析不到（打错名/已删除）：实际会拼成「父会话提供商 + 定义模型」，
+                    // 跨提供商的组合大概率无法调用，不说明的话主代理只会在派发失败上一头雾水
+                    if (definition?.providerId != null && definitionProviderId == null) {
+                        add(
+                            appContext.getString(
+                                R.string.tool_subagent_provider_unresolved,
+                                definition.providerId,
+                                modelBinding.model ?: "inherit"
+                            )
+                        )
+                    }
+                    if (writeCapped) add(appContext.getString(R.string.tool_subagent_plan_readonly_warning))
+                    describeModelFallback(modelBinding)?.let { add(it) }
+                }
+
+                createdList.add(
+                    CreatedSubagentInfo(
+                        id = subSessionId,
+                        agent = definition?.name,
+                        description = spec.description,
+                        tier = modelBinding.tier?.apiValue ?: "inherit",
+                        model = modelBinding.model ?: "inherit",
+                        warning = warnings.joinToString("\n").takeIf { it.isNotBlank() }
+                    )
+                )
             }
-
-            createdList.add(
-                CreatedSubagentInfo(
-                    id = subSessionId,
-                    agent = definition?.name,
-                    description = spec.description,
-                    tier = modelBinding.tier?.apiValue ?: "inherit",
-                    model = modelBinding.model ?: "inherit",
-                    warning = warnings.joinToString("\n").takeIf { it.isNotBlank() }
-                )
-            )
+        } finally {
+            // 创建中途失败（DB 异常等）时归还没用掉的预留名额，避免名额泄漏到进程重启
+            eventBus.releaseSlots(pendingReserve)
         }
 
         val first = createdList.first()
@@ -344,23 +384,25 @@ class TaskTool @Inject constructor(
         )
     }
 
-    /** 解析本次派发实际使用的模型（同步读三档快照 + 校验提供商可用性）。 */
-    private suspend fun resolveModel(
+    /**
+     * 解析本次派发实际使用的模型。提供商可用性与三档快照由调用方批量取一次传入，
+     * 这里只做纯解析（[SubagentModelResolver] 是纯函数）。
+     */
+    private fun resolveModel(
         args: Map<String, JsonElement>,
-        definition: AgentDefinition?
+        definition: AgentDefinition?,
+        definitionProviderId: String?,
+        enabledProviderIds: Set<String>,
+        tierSelections: Map<SubagentModelTier, SubagentTierSelection>
     ): ResolvedSubagentModel {
         val requestedTier = SubagentModelTier.fromToken(
             (args["tier"] as? JsonPrimitive)?.contentOrNull
         )
-        // 提供商可用性先取一次快照：解析器是纯函数（非 suspend），不能在里面查库。
-        val enabledProviderIds = runCatching {
-            aiProviderRepository.getAllProviders().first().filter { it.isEnabled }.map { it.id }.toSet()
-        }.getOrDefault(emptySet())
         return SubagentModelResolver.resolve(
             requestedTier = requestedTier,
             definitionModel = definition?.model,
-            definitionProviderId = definition?.providerId?.let { resolveProviderId(it) },
-            selections = runCatching { subagentTierSettings.snapshot() }.getOrDefault(emptyMap()),
+            definitionProviderId = definitionProviderId,
+            selections = tierSelections,
             isProviderAvailable = { id -> id in enabledProviderIds }
         )
     }
@@ -436,16 +478,6 @@ class TaskTool @Inject constructor(
                 put("message", appContext.getString(R.string.tool_subagent_message_delivered))
             }
         )
-    }
-
-    /**
-     * 把定义里的 provider 字段解析为真实 provider id：先按 id 精确匹配，再按名称忽略大小写匹配，
-     * 让用户在 frontmatter 里能直接写设置里看到的提供商名。都匹不上则返回 null（继承父会话）。
-     */
-    private suspend fun resolveProviderId(raw: String): String? {
-        aiProviderRepository.getProviderById(raw)?.let { return it.id }
-        val all = aiProviderRepository.getAllProviders().first()
-        return all.firstOrNull { it.name.equals(raw, ignoreCase = true) }?.id
     }
 
     /** 读取指定子代理的最后输出。 */

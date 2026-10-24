@@ -24,6 +24,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +35,7 @@ import com.aicode.core.theme.Radius
 import com.aicode.core.theme.Spacing
 import com.aicode.core.theme.semanticColors
 import com.aicode.feature.agent.presentation.SubAgentCardState
+import com.aicode.feature.agent.presentation.SubAgentCardStatus
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.AlertCircle
 import compose.icons.feathericons.ChevronRight
@@ -208,6 +210,7 @@ internal fun SubAgentDispatchCard(dispatch: ParsedSubAgentDispatch) {
             SubAgentDispatchItemCard(
                 index = index + 1,
                 item = item,
+                liveState = item.subSessionId?.let { host?.states?.get(it) },
                 onOpen = { sessionId -> host?.onOpen?.invoke(sessionId) }
             )
         }
@@ -253,11 +256,18 @@ private fun SubAgentDispatchSummary(count: Int) {
     }
 }
 
-/** 单个子代理任务卡片项：序号（01, 02...）+ 身份/模型 + 描述 + 跳转箭头。 */
+/**
+ * 单个子代理任务卡片项：序号（01, 02...）+ 身份/模型 + 描述 + 跳转箭头。
+ *
+ * [liveState] 来自 ViewModel 的实时状态（按子会话 id 索引）：本进程内派发的子代理会随
+ * 生命周期刷新状态药丸并展示结果摘要；为 null（历史消息回放、进程重启后）时退回静态
+ * 「已派发」展示，不会渲染假的「运行中」。
+ */
 @Composable
 private fun SubAgentDispatchItemCard(
     index: Int,
     item: ParsedSubAgentDispatchItem,
+    liveState: SubAgentCardState?,
     onOpen: (String) -> Unit
 ) {
     val hasSession = item.subSessionId != null
@@ -318,7 +328,9 @@ private fun SubAgentDispatchItemCard(
                             }
                         }
                         Spacer(Modifier.weight(1f))
+                        SubAgentStatusChip(liveState?.status)
                         if (hasSession) {
+                            Spacer(Modifier.width(Spacing.xs))
                             Icon(
                                 imageVector = FeatherIcons.ChevronRight,
                                 contentDescription = stringResource(R.string.subagent_card_open),
@@ -335,6 +347,27 @@ private fun SubAgentDispatchItemCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // 完成后的结果摘要（与完成通知同一份）：多数场景无需再进子会话即可看到结论
+                    liveState?.excerpt?.takeIf { it.isNotBlank() }?.let { excerpt ->
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = excerpt,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    liveState?.changedFiles?.takeIf { it.isNotEmpty() }?.let { files ->
+                        Text(
+                            text = stringResource(R.string.subagent_card_changed_files, files.size),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -383,10 +416,47 @@ private fun SubAgentWarningBanner(warning: String) {
 /** 发出时的状态药丸：指示子代理任务已成功派发。 */
 @Composable
 private fun SubAgentDispatchedChip() {
+    SubAgentStatusPill(
+        label = stringResource(R.string.subagent_card_status_dispatched),
+        color = MaterialTheme.colorScheme.primary
+    )
+}
+
+/**
+ * 单项实时状态药丸：随子代理生命周期刷新（运行中/已完成/失败/已停止）。
+ * [status] 为 null——历史消息回放、进程重启后拿不到实时状态——退回静态「已派发」，
+ * 不渲染可能失真的「运行中」。
+ */
+@Composable
+private fun SubAgentStatusChip(status: SubAgentCardStatus?) {
+    when (status) {
+        null -> SubAgentDispatchedChip()
+        SubAgentCardStatus.RUNNING -> SubAgentStatusPill(
+            label = stringResource(R.string.subagent_card_status_running),
+            color = MaterialTheme.colorScheme.primary
+        )
+        SubAgentCardStatus.COMPLETED -> SubAgentStatusPill(
+            label = stringResource(R.string.subagent_card_status_completed),
+            color = MaterialTheme.semanticColors.success
+        )
+        SubAgentCardStatus.FAILED -> SubAgentStatusPill(
+            label = stringResource(R.string.subagent_card_status_failed),
+            color = MaterialTheme.colorScheme.error
+        )
+        SubAgentCardStatus.STOPPED -> SubAgentStatusPill(
+            label = stringResource(R.string.subagent_card_status_stopped),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** 状态药丸通用形制：色点 + 文本，[color] 决定整体色调。 */
+@Composable
+private fun SubAgentStatusPill(label: String, color: Color) {
     Surface(
         shape = RoundedCornerShape(Radius.pill),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+        color = color.copy(alpha = 0.08f),
+        border = BorderStroke(0.5.dp, color.copy(alpha = 0.25f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
@@ -397,12 +467,12 @@ private fun SubAgentDispatchedChip() {
                 modifier = Modifier
                     .size(5.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(color)
             )
             Text(
-                text = stringResource(R.string.subagent_card_status_dispatched),
+                text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
+                color = color,
                 fontWeight = FontWeight.Medium
             )
         }

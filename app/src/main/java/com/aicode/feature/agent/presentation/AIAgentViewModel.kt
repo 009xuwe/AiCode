@@ -1411,11 +1411,14 @@ class AIAgentViewModel @Inject constructor(
         val parentSession = sessionUseCase.getSessionById(event.parentSessionId)
         if (parentSession == null) {
             FileLogger.w(TAG, "子代理父会话不存在: ${event.parentSessionId}")
+            // SPAWNED 已把它计入活跃集合，而工作流永远不会启动，交回并发名额
+            subAgentEventBus.release(event.subSessionId)
             return
         }
         // 子会话可能已被用户删除，跳过
         if (sessionUseCase.getSessionById(event.subSessionId) == null) {
             FileLogger.w(TAG, "子代理会话已被删除，跳过启动: ${event.subSessionId}")
+            subAgentEventBus.release(event.subSessionId)
             return
         }
         // 子代理运行中不允许重复启动（同一会话已有活跃 job）
@@ -1813,7 +1816,9 @@ class AIAgentViewModel @Inject constructor(
         setAgentState(sessionId, AgentUIState.Streaming)
         acquireKeepalive()
 
-        // 声明在 try 外：finally 需要据此判断本轮是否正常完成，决定是否续跑 goal。
+        // 声明在 try 外：catch/finally 需要据此向父会话发失败通知并释放子代理并发名额，
+        // 而 try 内的异常可能发生在更早的 buildHistory 阶段。
+        val isSubSession = currentSession?.parentId != null
         var turnSucceeded = false
         // 本轮是否处于 goal 自主循环（用于「打断即暂停」）与本轮是否有活动（用于空回合熔断）。
         var goalActiveAtTurn = false
@@ -1894,7 +1899,7 @@ class AIAgentViewModel @Inject constructor(
             )
 
             val allTools = toolRegistry.getAvailableTools()
-            val isSub = sessionEntity?.parentId != null
+            val isSub = isSubSession
             val goalActive = sessionDomain?.goalStatus == GoalStatus.ACTIVE
             goalActiveAtTurn = goalActive
             val tools = when {
@@ -2183,9 +2188,27 @@ class AIAgentViewModel @Inject constructor(
              FileLogger.e(TAG, "executeAgentRequestStream 失败: request=$request", e)
              setAgentState(sessionId, AgentUIState.Error(e.toUserMessage(context)))
              _completedSessions.value = _completedSessions.value - sessionId
+             // 子会话在 workflow 之外失败（如历史构建异常）：通知父会话并释放并发名额。
+             // 不补这一手，父代理会一直等一条永不到来的完成通知，名额也泄漏到进程重启。
+             if (isSubSession) {
+                 sessionUseCase.getSessionById(sessionId)?.parentId?.let { parentId ->
+                     subAgentEventBus.emit(
+                         SubAgentEvent(
+                             subSessionId = sessionId,
+                             parentSessionId = parentId,
+                             type = SubAgentEventType.FAILED,
+                             detail = e.toUserMessage(context)
+                         )
+                     )
+                 }
+             }
         } finally {
             val isOwnJob = sessionJobs[sessionId] == coroutineContext[Job]
             FileLogger.d(TAG, "stream finally: sid=$sessionId isOwnJob=$isOwnJob state=${_agentStates.value[sessionId]}")
+            // 子会话并发名额的兜底释放：正常路径已由 COMPLETED/FAILED/STOPPED 事件移出活跃集合，
+            // 这里覆盖取消（如切换工作区的 stopAllAgents）、外层异常等不发事件的收尾路径。
+            // 已释放时 release 返回 false 无副作用；不在此补发通知——需要通知的路径都各自处理过。
+            if (isSubSession) subAgentEventBus.release(sessionId)
             if (isOwnJob) {
                 sessionJobs.remove(sessionId)
             }
@@ -2255,6 +2278,11 @@ class AIAgentViewModel @Inject constructor(
         agentNotificationCenter.clearAll()
         _queuedRequests.value = emptyMap()
         goalEmptyTurnCounts.clear()
+        // 先释放全部子代理并发名额再取消：job 取消走 CancellationException 路径，
+        // 不会发 COMPLETED/FAILED 事件，不释放的话名额一直占到进程重启，
+        // 之后任何会话都无法再派子代理。不通知父会话——切换工作区是用户主动停一切，
+        // 父会话自身也在被停之列，通知只会触发已停会话的无谓新一轮。
+        subAgentEventBus.activeSubSessionIds.value.toList().forEach { subAgentEventBus.release(it) }
         jobs.forEach { it.cancel() }
         sessionJobs.clear()
         _runningCommandSessions.value = emptySet()

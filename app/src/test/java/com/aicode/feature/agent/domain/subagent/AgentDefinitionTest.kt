@@ -175,6 +175,26 @@ class AgentDefinitionTest {
         assertEquals(listOf("Bash"), def(allowed = listOf("bash")).filterToolNames(allTools))
     }
 
+    // ── messageParent：子代理基线提示词教它受阻时用该工具协调，白名单漏列不该让它消失 ──
+
+    private val toolsWithParentMessage = allTools + "messageParent"
+
+    /** 白名单不含 messageParent 时仍保留：Explore 这类只读定义不能被裁成「无法向主会话求助」。 */
+    @Test
+    fun filter_messageParentSurvivesAllowlistOmission() {
+        val result = def(allowed = listOf("readFile", "search")).filterToolNames(toolsWithParentMessage)
+
+        assertEquals(listOf("readFile", "search", "messageParent"), result)
+    }
+
+    /** 黑名单显式禁用 messageParent 时尊重用户意愿，照常剔除。 */
+    @Test
+    fun filter_messageParentRemovableViaDenylist() {
+        val result = def(disallowed = listOf("messageParent")).filterToolNames(toolsWithParentMessage)
+
+        assertEquals(allTools - "task", result)
+    }
+
     /** 默认继承全量工具，三种能力全为「是」。 */
     @Test
     fun capability_fullInheritanceAllowsEverything() {
@@ -238,7 +258,11 @@ class AgentDefinitionTest {
         assertTrue(def().canModifyOrExecute())
         assertTrue(def(allowed = listOf("readFile", "editFile")).canModifyOrExecute())
         assertFalse(def(allowed = listOf("readFile", "search", "list")).canModifyOrExecute())
-        assertFalse(def(disallowed = listOf("Bash", "terminal", "Shizuku", "writeFile", "editFile", "generateImage")).canModifyOrExecute())
+        // browser 归入写维度（浏览器自动化在 PLAN 下同样被拦截），禁写时须一并禁用
+        assertFalse(
+            def(disallowed = listOf("Bash", "terminal", "Shizuku", "writeFile", "editFile", "generateImage", "browser"))
+                .canModifyOrExecute()
+        )
     }
 
     /** 同名定义项目级覆盖全局，结果按名称排序。 */

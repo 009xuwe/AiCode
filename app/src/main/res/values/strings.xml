@@ -40,6 +40,7 @@
     <string name="tool_subagent_tier_pinned">该子代理定义里已写死模型（%1$s），请求的「%2$s」档被忽略。</string>
     <string name="tool_subagent_tier_fallback">请求的「%1$s」档未配置或对应提供商不可用，已改用「%2$s」档（%3$s）。</string>
     <string name="tool_subagent_tier_unavailable">请求的「%1$s」档未配置或对应提供商不可用，该子代理将继承当前会话模型。</string>
+    <string name="tool_subagent_provider_unresolved">该子代理定义里的 provider「%1$s」未找到（未配置或名称不符），本次将用父会话提供商搭配定义模型「%2$s」，该组合可能无法调用。</string>
     <!-- 子代理模型档位 -->
     <string name="settings_subagent_tiers_header">子代理模型档位</string>
     <string name="settings_subagent_tier_light">轻量</string>
