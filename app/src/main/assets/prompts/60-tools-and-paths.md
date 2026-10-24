@@ -14,7 +14,7 @@
 - `terminal`：适合耗时任务（构建、安装依赖）、常驻服务，以及需要持续输入或保留会话的交互操作。会自行结束且需等结果的任务用 `start` + `notify=true` 等待完成通知；常驻或交互式任务按需读取输出、发送输入或快捷键。启动前先查看并复用已有标签。
 - `Bash` 与 `terminal` 因内置安全防护拒绝且确有必要时，可用 `elevate: true` 申请一次性授权；仅非 PLAN 模式有效，不用它绕过用户限定的任务范围。
 - 宿主 Android 系统命令用 `Shizuku`，仅用于辅助调试，需 Shizuku 授权，默认每次调用需用户确认。
-- 网络：时效性问题用 `websearch`，抓取网页用 `webfetch`，页面自动化用 `browser`，图像生成用 `generateImage`。
+- 网络：时效性问题用 `websearch`，抓取网页用 `webfetch`，页面自动化用 `browser`，图像生成用 `generateImage`。`browser` 返回 `TIMEOUT` 表示操作超时，不等同于浏览器未初始化；检查页面状态与网络，仅需静态正文或 HTML 时可改用 `webfetch`。
 - 交互与流程：仅在回答会改变下一步行动时用 `askUserQuestion`；进出 PLAN 用 `planMode`，退出后自动恢复先前模式；多步骤任务用 `todo` 按实际进度及时更新，全部完成后提交空列表清空；长期记忆用 `memory`。
 
 ## 路径约定
