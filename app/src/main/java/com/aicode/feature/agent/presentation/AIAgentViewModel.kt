@@ -322,6 +322,8 @@ class AIAgentViewModel @Inject constructor(
      */
     val turnExpansionOverrides = mutableStateMapOf<String, Boolean>()
 
+    val turnMessageKeys = mutableMapOf<String, MutableMap<String, String>>()
+
     /** 记录一次整轮折叠的手动展开/收起。 */
     fun setTurnExpanded(key: String, expanded: Boolean) {
         turnExpansionOverrides[key] = expanded
@@ -337,6 +339,8 @@ class AIAgentViewModel @Inject constructor(
     fun setReasoningExpanded(messageId: String, expanded: Boolean) {
         reasoningExpansionOverrides[messageId] = expanded
     }
+
+    fun streamingReasoningKey(sessionId: String): String = "reasoning:stream:$sessionId"
 
     /** 思考过程耗时（毫秒）：key = 助手消息 id。记录流式思考的实际耗时，供落库后的卡片展示一位小数秒数。 */
     val reasoningDurations = mutableStateMapOf<String, Long>()
@@ -963,7 +967,10 @@ class AIAgentViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private fun setStreamingReasoning(sessionId: String, text: String?) {
-        if (text == null) _reasoningTimings.value = _reasoningTimings.value - sessionId
+        if (text == null) {
+            _reasoningTimings.value = _reasoningTimings.value - sessionId
+            reasoningExpansionOverrides.remove(streamingReasoningKey(sessionId))
+        }
         _streamingReasonings.value = if (text == null) _streamingReasonings.value - sessionId else _streamingReasonings.value + (sessionId to text)
     }
 
@@ -1909,6 +1916,9 @@ class AIAgentViewModel @Inject constructor(
 
                         // 流式收尾：在落库并触发 UI messages 更新之前，先同步清空流式状态，
                         // 避免落库消息先行发射导致 UI 出现「落库消息与流式气泡同屏并存」的时差。
+                        reasoningExpansionOverrides.remove(streamingReasoningKey(sessionId))?.let { expanded ->
+                            reasoningExpansionOverrides[event.messageId] = expanded
+                        }
                         setStreamingReasoning(sessionId, null)
                         setStreamingText(sessionId, null)
                         if (event.toolCalls.isEmpty()) {
