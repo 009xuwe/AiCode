@@ -312,11 +312,11 @@ internal fun BackupScreen(
         )
     }
 
-    // 上传口令
+    // 上传口令（云端上传必须加密：备份默认含解密后的 API Key / SSH 凭据，明文放到远端风险不可控）
     uploadTarget?.let { target ->
         PasswordDialog(
             title = stringResource(R.string.backup_set_password),
-            subtitle = stringResource(R.string.backup_password_hint),
+            subtitle = stringResource(R.string.backup_net_upload_password_hint),
             confirmText = stringResource(R.string.backup_net_upload),
             password = uploadPassword,
             onPasswordChange = { uploadPassword = it },
@@ -325,12 +325,13 @@ internal fun BackupScreen(
                 val pw = uploadPassword
                 uploadTarget = null
                 uploadPassword = ""
-                if (t != null) {
+                if (t != null && pw.isNotEmpty()) {
                     networkWorkingTextRes = R.string.backup_net_uploading
                     viewModel.uploadToTarget(t, pw)
                 }
             },
-            onDismiss = { uploadTarget = null; uploadPassword = "" }
+            onDismiss = { uploadTarget = null; uploadPassword = "" },
+            confirmEnabled = uploadPassword.isNotEmpty()
         )
     }
 
@@ -828,7 +829,8 @@ private fun PasswordDialog(
     password: String,
     onPasswordChange: (String) -> Unit,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    confirmEnabled: Boolean = true
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -852,7 +854,9 @@ private fun PasswordDialog(
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(confirmText) } },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = confirmEnabled) { Text(confirmText) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
