@@ -1754,8 +1754,8 @@
     <string name="workspace_switch_confirm">Switching workspace will stop all running AI sessions and close terminal tabs in the current workspace. Continue?</string>
     <string name="workspace_confirm">Confirm</string>
     <string name="workspace_open">Open Workspace</string>
-    <string name="workspace_new">New</string>
-    <string name="workspace_empty_hint">No workspaces, tap "New" to create one</string>
+    <string name="workspace_new_internal">New Internal Workspace</string>
+    <string name="workspace_empty_hint">No workspaces, tap %1$s to create one</string>
     <string name="workspace_delete">Delete Workspace</string>
     <string name="workspace_delete_confirm">Delete "%1$s"? All files in this directory and this workspace\'s chats will be deleted and cannot be undone.</string>
     <string name="workspace_new_workspace">New Workspace</string>
@@ -1763,9 +1763,9 @@
     <string name="workspace_name_exists">A workspace with this name already exists</string>
     <string name="workspace_remote_root_create_failed">Failed to create the remote workspace directory. Check the path and server permissions.</string>
     <string name="workspace_remote_default_create_failed">Failed to create the default remote workspace. Check server permissions and disk space.</string>
-    <string name="workspace_add_local_dir">Add Local Directory</string>
-    <string name="workspace_external_added">Local directory workspace "%1$s" added</string>
-    <string name="workspace_external_warning_title">Add local directory workspace</string>
+    <string name="workspace_add_external">Add External Workspace</string>
+    <string name="workspace_external_added">External workspace "%1$s" added</string>
+    <string name="workspace_external_warning_title">Add External Workspace</string>
     <string name="workspace_external_warning_message">AI directly reads and writes the real files in the selected directory. Public storage does not support symlinks, so npm, yarn, pnpm, and git operations involving symlinks may fail. Removing the workspace only removes the association and does not delete directory contents.</string>
     <string name="workspace_external_warning_dont_show_again">Don’t show again</string>
     <string name="workspace_external_warning_continue">Continue</string>
