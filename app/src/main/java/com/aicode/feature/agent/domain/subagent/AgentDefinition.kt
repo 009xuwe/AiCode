@@ -93,16 +93,27 @@ data class AgentDefinition(
         disallowedTools.any { matches(it, toolName) }
 
     /**
+     * 该定义派出的子代理实际生效的运行模式（与 SessionUseCase.resolveChildMode 同规则）：
+     * 默认继承父会话；定义自带 [mode] 时只能往更严的方向收、不能放大。
+     * 返回 null 表示两边都没给出（极罕见的无模式上下文）。
+     */
+    fun effectiveMode(parentMode: AgentMode?): AgentMode? = when {
+        mode != null && parentMode != null -> mode.limitedBy(parentMode)
+        else -> mode ?: parentMode
+    }
+
+    /**
      * 派发前给主代理看的能力摘要（读 / 写 / 命令三个维度）。
      *
      * 主代理看不到子代理的工具集，容易把修改任务派给只读子代理、让没有 Shell 的子代理跑验证命令，
      * 白跑一整轮才发现。摘要随「可用子代理」清单注入，判定与 [filterToolNames] 同源。
      *
-     * @param mode 当前会话模式。传给 PLAN 时，写与命令一律显示为「否（PLAN 只读）」——
-     *   子代理继承父会话模式，此时定义里配了写工具也用不上，不提前说清就会派错活。
+     * @param parentMode 父会话模式。判定用 [effectiveMode]：不仅父会话是 PLAN 时写与命令显示
+     *   「否（PLAN 只读）」，定义钉死 `mode: plan`（即便父会话是 BUILD）同样如此——子代理
+     *   实际跑在只读边界，定义里配了写工具也会被策略引擎拦截，不提前说清就会派错活。
      */
-    fun capabilitySummary(mode: AgentMode? = null): String {
-        val planReadOnly = mode == AgentMode.PLAN
+    fun capabilitySummary(parentMode: AgentMode? = null): String {
+        val planReadOnly = effectiveMode(parentMode) == AgentMode.PLAN
         fun flag(group: Set<String>, blockedByMode: Boolean = false): String = when {
             blockedByMode && planReadOnly -> "否（PLAN 只读）"
             group.any { allowsTool(it) } -> "是"

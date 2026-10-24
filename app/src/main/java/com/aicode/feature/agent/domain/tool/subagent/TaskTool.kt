@@ -313,7 +313,10 @@ class TaskTool @Inject constructor(
                 pendingReserve--
                 FileLogger.i(TAG, "子代理已创建: session=$subSessionId parent=$parentSessionId agent=${definition?.name ?: "-"}")
 
-                val writeCapped = context.mode == AgentMode.PLAN && (definition?.canModifyOrExecute() ?: true)
+                // 与 capabilitySummary 同口径：定义钉死 mode: plan 时即便父会话是 BUILD，
+                // 子代理也在只读边界运行，派发结果里同样要给出 PLAN 只读警告。
+                val effectiveMode = definition?.effectiveMode(context.mode) ?: context.mode
+                val writeCapped = effectiveMode == AgentMode.PLAN && (definition?.canModifyOrExecute() ?: true)
                 val warnings = buildList {
                     // 定义写了 provider 却解析不到（打错名/已删除）：实际会拼成「父会话提供商 + 定义模型」，
                     // 跨提供商的组合大概率无法调用，不说明的话主代理只会在派发失败上一头雾水

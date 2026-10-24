@@ -111,12 +111,14 @@ class AgentDefinitionTest {
 
     private fun def(
         allowed: List<String> = emptyList(),
-        disallowed: List<String> = emptyList()
+        disallowed: List<String> = emptyList(),
+        mode: AgentMode? = null
     ) = AgentDefinition(
         name = "a",
         description = "",
         allowedTools = allowed,
         disallowedTools = disallowed,
+        mode = mode,
         prompt = "p"
     )
 
@@ -251,6 +253,33 @@ class AgentDefinitionTest {
         val summary = def(allowed = listOf("readFile", "search")).capabilitySummary(AgentMode.PLAN)
 
         assertEquals("文件读取 是 · 文件修改 否（PLAN 只读） · 执行命令 否（PLAN 只读）", summary)
+    }
+
+    /**
+     * 定义钉死 mode: plan 而父会话是 BUILD：子代理实际跑在只读边界（resolveChildMode 采纳更严值），
+     * 摘要必须同样标注「否（PLAN 只读）」——漏掉这一方向，主代理会照摘要给只读子代理派写任务，
+     * 整轮被策略引擎拦下白跑。
+     */
+    @Test
+    fun capability_definitionPinnedPlan_blocksEvenUnderBuildParent() {
+        val summary = def(mode = AgentMode.PLAN).capabilitySummary(AgentMode.BUILD)
+
+        assertEquals("文件读取 是 · 文件修改 否（PLAN 只读） · 执行命令 否（PLAN 只读）", summary)
+    }
+
+    /** 定义想放宽（mode: auto）不会放大权限：仍按父会话模式判定，AUTO 父下写与命令可用。 */
+    @Test
+    fun capability_definitionCannotEscalateBeyondParent() {
+        // 父 PLAN 时定义写 auto 也不放开（limitedBy 收敛回父模式）
+        assertEquals(
+            "文件读取 是 · 文件修改 否（PLAN 只读） · 执行命令 否（PLAN 只读）",
+            def(mode = AgentMode.AUTO).capabilitySummary(AgentMode.PLAN)
+        )
+        // 父 AUTO 且定义无 mode：正常继承，写与命令可用
+        assertEquals(
+            "文件读取 是 · 文件修改 是 · 执行命令 是",
+            def().capabilitySummary(AgentMode.AUTO)
+        )
     }
 
     @Test
