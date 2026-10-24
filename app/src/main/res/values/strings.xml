@@ -46,6 +46,17 @@
     <string name="settings_subagent_tier_standard">均衡</string>
     <string name="settings_subagent_tier_strong">强力</string>
     <string name="settings_subagent_tier_unconfigured">未配置</string>
+    <!-- 子代理派发卡片 -->
+    <string name="subagent_card_default_agent">子代理</string>
+    <string name="subagent_card_status_running">运行中</string>
+    <string name="subagent_card_status_completed">已完成</string>
+    <string name="subagent_card_status_failed">失败</string>
+    <string name="subagent_card_status_stopped">已停止</string>
+    <string name="subagent_card_expand">展开摘要</string>
+    <string name="subagent_card_collapse">收起摘要</string>
+    <string name="subagent_card_changed_files">改动 %1$d 个文件</string>
+    <string name="subagent_card_open">进入会话</string>
+    <string name="subagent_card_stop">停止</string>
     <string name="tool_browser_screenshot_failed">暂时无法截图。可稍后重试，或用 getText/getHtml 读取页面内容。</string>
     <string name="tool_browser_condition_met">条件已满足。</string>
     <string name="tool_browser_wait_timeout">等待超时，条件尚未满足。</string>

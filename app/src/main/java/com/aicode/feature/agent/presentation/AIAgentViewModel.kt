@@ -62,6 +62,7 @@ import com.aicode.feature.agent.domain.subagent.SubAgentEventBus
 import com.aicode.core.watch.FileChangeHub
 import com.aicode.core.watch.asDirtySignal
 import com.aicode.feature.agent.domain.subagent.SubAgentDigester
+import com.aicode.feature.agent.domain.subagent.SubAgentDigest
 import com.aicode.feature.agent.domain.subagent.SubAgentEventType
 import com.aicode.feature.agent.domain.workflow.AgentWorkflow
 import com.aicode.feature.terminal.domain.TabFinishedEvent
@@ -225,6 +226,15 @@ class AIAgentViewModel @Inject constructor(
      */
     private val _completedSessions = MutableStateFlow<Set<String>>(emptySet())
     val completedSessions: StateFlow<Set<String>> = _completedSessions.asStateFlow()
+
+    /**
+     * 子代理卡片状态（按子会话 id 索引），仅存内存。
+     *
+     * 卡片主体从工具结果渲染（agent、任务、档位、模型都在结果里），这里只补「本进程才知道」的实时状态：
+     * 运行中 / 耗时 / 完成摘要 / 改动文件。进程重启后历史卡片自动回退为静态展示。
+     */
+    private val _subAgentCards = MutableStateFlow<Map<String, SubAgentCardState>>(emptyMap())
+    val subAgentCards: StateFlow<Map<String, SubAgentCardState>> = _subAgentCards.asStateFlow()
 
     val agentState: StateFlow<AgentUIState> = _currentSessionId
         .flatMapLatest { id ->
@@ -1149,6 +1159,9 @@ class AIAgentViewModel @Inject constructor(
         const val TAG = "AIAgentViewModel"
         const val AGENT_COMPLETE_CHANNEL = "agent_complete"
         const val AGENT_COMPLETE_NOTIFICATION_ID = 100
+
+        /** 子代理卡片状态保留条数：只服务当前展示，超出按开始时间淘汰最早的一批。 */
+        const val MAX_SUBAGENT_CARDS = 50
         /** wakeLock 超时保险：构建、装依赖类工具动辄十几分钟，给足 60 分钟；任务正常结束会主动释放。 */
         const val KEEPALIVE_TIMEOUT_MS = 60 * 60 * 1000L
 
@@ -1316,8 +1329,14 @@ class AIAgentViewModel @Inject constructor(
         viewModelScope.launch {
             subAgentEventBus.events.collect { event ->
                 when (event.type) {
-                    SubAgentEventType.SPAWNED -> spawnSubAgentWorkflow(event)
-                    SubAgentEventType.STOPPED -> stopAgentSession(event.subSessionId)
+                    SubAgentEventType.SPAWNED -> {
+                        markSubAgentRunning(event.subSessionId)
+                        spawnSubAgentWorkflow(event)
+                    }
+                    SubAgentEventType.STOPPED -> {
+                        markSubAgentFinished(event.subSessionId, SubAgentCardStatus.STOPPED)
+                        stopAgentSession(event.subSessionId)
+                    }
                     SubAgentEventType.COMPLETED, SubAgentEventType.FAILED -> {
                         enqueueSubAgentNotification(event)
                     }
@@ -1325,6 +1344,54 @@ class AIAgentViewModel @Inject constructor(
                     SubAgentEventType.MESSAGE_FROM_SUB -> deliverMessageToParent(event)
                 }
             }
+        }
+    }
+
+    /** 子代理开始运行：卡片立刻进入「运行中」，不必等工具结果回来。 */
+    private fun markSubAgentRunning(subSessionId: String) {
+        viewModelScope.launch {
+            val session = runCatching { sessionUseCase.getSessionById(subSessionId) }.getOrNull()
+            _subAgentCards.value = _subAgentCards.value + (
+                subSessionId to SubAgentCardState(
+                    subSessionId = subSessionId,
+                    agentName = session?.subagentType?.takeIf { it.isNotBlank() && it != "subagent" },
+                    title = session?.title.orEmpty(),
+                    status = SubAgentCardStatus.RUNNING,
+                    startedAt = System.currentTimeMillis()
+                )
+                )
+        }
+    }
+
+    /**
+     * 子代理结束：把状态、摘要与改动文件写进卡片。
+     *
+     * @param digest 已算好的结果摘要（与完成通知同一份），调用方拿不到时传 null 只更新状态。
+     */
+    private fun markSubAgentFinished(
+        subSessionId: String,
+        status: SubAgentCardStatus,
+        digest: SubAgentDigest? = null
+    ) {
+        val previous = _subAgentCards.value[subSessionId]
+        val startedAt = previous?.startedAt ?: System.currentTimeMillis()
+        _subAgentCards.value = _subAgentCards.value + (
+            subSessionId to SubAgentCardState(
+                subSessionId = subSessionId,
+                agentName = previous?.agentName,
+                title = previous?.title.orEmpty(),
+                status = status,
+                excerpt = digest?.excerpt ?: previous?.excerpt,
+                changedFiles = digest?.changedFiles?.takeIf { it.isNotEmpty() } ?: previous?.changedFiles.orEmpty(),
+                elapsedMs = System.currentTimeMillis() - startedAt,
+                startedAt = startedAt
+            )
+            )
+        // 卡片状态只服务当前进程的展示，超过 50 条就丢掉最早的，避免长会话无限增长。
+        if (_subAgentCards.value.size > MAX_SUBAGENT_CARDS) {
+            val keep = _subAgentCards.value.entries.sortedByDescending { it.value.startedAt }
+                .take(MAX_SUBAGENT_CARDS).associate { it.key to it.value }
+            _subAgentCards.value = keep
         }
     }
 
@@ -1375,6 +1442,16 @@ class AIAgentViewModel @Inject constructor(
             } else {
                 null
             }
+            // 卡片与通知共用同一份摘要：卡片在聊天流里展示，通知喂给父代理。
+            markSubAgentFinished(
+                subSessionId = event.subSessionId,
+                status = if (event.type == SubAgentEventType.FAILED) {
+                    SubAgentCardStatus.FAILED
+                } else {
+                    SubAgentCardStatus.COMPLETED
+                },
+                digest = digest
+            )
             notifyParentSubAgentFinished(
                 parentSessionId = event.parentSessionId,
                 subSessionId = event.subSessionId,

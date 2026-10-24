@@ -46,6 +46,17 @@
     <string name="settings_subagent_tier_standard">Balanced</string>
     <string name="settings_subagent_tier_strong">Strong</string>
     <string name="settings_subagent_tier_unconfigured">Not configured</string>
+    <!-- Subagent dispatch card -->
+    <string name="subagent_card_default_agent">Subagent</string>
+    <string name="subagent_card_status_running">Running</string>
+    <string name="subagent_card_status_completed">Completed</string>
+    <string name="subagent_card_status_failed">Failed</string>
+    <string name="subagent_card_status_stopped">Stopped</string>
+    <string name="subagent_card_expand">Show full summary</string>
+    <string name="subagent_card_collapse">Collapse summary</string>
+    <string name="subagent_card_changed_files">%1$d files changed</string>
+    <string name="subagent_card_open">Open session</string>
+    <string name="subagent_card_stop">Stop</string>
     <string name="tool_browser_screenshot_failed">A screenshot is currently unavailable. Try again later, or use getText/getHtml to read the page.</string>
     <string name="tool_browser_condition_met">Condition met.</string>
     <string name="tool_browser_wait_timeout">Timed out before the condition was met.</string>
