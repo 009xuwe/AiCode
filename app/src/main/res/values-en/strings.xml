@@ -24,6 +24,8 @@
     <string name="tool_plan_mode_denied">This operation was not executed because PLAN mode allows read-only exploration. To implement changes, submit the plan and request to exit PLAN.</string>
     <string name="tool_permission_rule_denied">Permission rules prohibit this tool call.</string>
     <string name="tool_command_rule_denied">Permission rules prohibit this command.</string>
+    <string name="tool_command_rule_denied_detail">Permission rules prohibit this command. Matched rule: %1$s; offending segment: %2$s; suggestion: rewrite it in an allowed form, or ask the user to update the rule under Tool permissions and retry.</string>
+    <string name="tool_command_unanalyzable_reason">The command contains constructs that cannot be statically analyzed (%1$s); it can only be allowed once and cannot be remembered.</string>
     <string name="tool_shizuku_confirmation_reason">Shizuku operates on Android as adb shell. Each call requires confirmation and cannot be saved as always allowed.</string>
     <string name="tool_vision_images_attached">Attached %1$d images for direct viewing and analysis.</string>
     <string name="tool_vision_focus">Focus: %1$s</string>
@@ -34,6 +36,30 @@
     <string name="tool_mcp_invalid_name">MCP server names may contain only ASCII letters, digits, underscores, and hyphens. Current value: %1$s.</string>
     <string name="tool_memory_saved">Saved memory “%1$s” (%2$s). Its summary will be available in later sessions; use read for the full text.</string>
     <string name="tool_subagent_message_delivered">Message delivered. A running subagent will receive it shortly; an idle subagent will resume to process it.</string>
+    <string name="tool_subagent_plan_readonly_warning">PLAN mode is active: subagents inherit read-only permissions, so file edits and commands will be blocked. If implementation is needed, request to exit PLAN before delegating.</string>
+    <string name="tool_subagent_tier_pinned">This subagent pins its model (%1$s), so the requested "%2$s" tier was ignored.</string>
+    <string name="tool_subagent_tier_fallback">The requested "%1$s" tier is not configured or its provider is unavailable; using the "%2$s" tier (%3$s) instead.</string>
+    <string name="tool_subagent_tier_unavailable">The requested "%1$s" tier is not configured or its provider is unavailable; this subagent will inherit the current session model.</string>
+    <!-- Subagent model tiers -->
+    <string name="settings_subagent_tiers_header">Subagent model tiers</string>
+    <string name="settings_subagent_tier_light">Light</string>
+    <string name="settings_subagent_tier_standard">Balanced</string>
+    <string name="settings_subagent_tier_strong">Strong</string>
+    <string name="settings_subagent_tier_unconfigured">Not configured</string>
+    <!-- Subagent dispatch card -->
+    <string name="subagent_dispatch_title">Subagent Tasks</string>
+    <string name="subagent_dispatch_count">%1$d tasks dispatched</string>
+    <string name="subagent_card_default_agent">Subagent</string>
+    <string name="subagent_card_status_dispatched">Dispatched</string>
+    <string name="subagent_card_status_running">Running</string>
+    <string name="subagent_card_status_completed">Completed</string>
+    <string name="subagent_card_status_failed">Failed</string>
+    <string name="subagent_card_status_stopped">Stopped</string>
+    <string name="subagent_card_expand">Show full summary</string>
+    <string name="subagent_card_collapse">Collapse summary</string>
+    <string name="subagent_card_changed_files">%1$d files changed</string>
+    <string name="subagent_card_open">Open session</string>
+    <string name="subagent_card_stop">Stop</string>
     <string name="tool_browser_screenshot_failed">A screenshot is currently unavailable. Try again later, or use getText/getHtml to read the page.</string>
     <string name="tool_browser_condition_met">Condition met.</string>
     <string name="tool_browser_wait_timeout">Timed out before the condition was met.</string>

@@ -2,6 +2,7 @@ package com.aicode.feature.agent.domain.subagent
 
 import com.aicode.core.watch.FileChangeHub
 import com.aicode.feature.agent.domain.container.ContainerInstaller
+import com.aicode.feature.agent.domain.model.AgentMode
 import com.aicode.feature.workspace.domain.FileAccessProvider
 import com.aicode.feature.workspace.domain.ProjectAicodeRoot
 import io.mockk.Called
@@ -11,6 +12,7 @@ import io.mockk.verify
 import java.io.File
 import kotlinx.coroutines.flow.emptyFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -171,6 +173,72 @@ class AgentDefinitionTest {
     @Test
     fun filter_toolNameMatchIsCaseInsensitive() {
         assertEquals(listOf("Bash"), def(allowed = listOf("bash")).filterToolNames(allTools))
+    }
+
+    /** 默认继承全量工具，三种能力全为「是」。 */
+    @Test
+    fun capability_fullInheritanceAllowsEverything() {
+        val summary = def().capabilitySummary()
+
+        assertEquals("文件读取 是 · 文件修改 是 · 执行命令 是", summary)
+    }
+
+    /** 白名单只给读工具：主代理据此知道不能派修改任务。 */
+    @Test
+    fun capability_readOnlyAllowlistMarksWriteAndExecNo() {
+        val summary = def(allowed = listOf("readFile", "list", "search", "viewImage")).capabilitySummary()
+
+        assertEquals("文件读取 是 · 文件修改 否 · 执行命令 否", summary)
+    }
+
+    @Test
+    fun capability_denylistRemovesExec() {
+        val summary = def(disallowed = listOf("Bash", "terminal", "Shizuku")).capabilitySummary()
+
+        assertEquals("文件读取 是 · 文件修改 是 · 执行命令 否", summary)
+    }
+
+    /** 摘要与工具裁剪同源：黑名单优先，允许名单里也写着 Bash 也照样是「否」。 */
+    @Test
+    fun capability_denyWinsOverAllowLikeFilter() {
+        val definition = def(allowed = listOf("readFile", "Bash"), disallowed = listOf("Bash"))
+
+        assertEquals("文件读取 是 · 文件修改 否 · 执行命令 否", definition.capabilitySummary())
+    }
+
+    /** 通配黑名单只作用于它匹配到的工具，不应误伤内置的读写与命令能力。 */
+    @Test
+    fun capability_wildcardDenyApplies() {
+        val summary = def(disallowed = listOf("mcp__*")).capabilitySummary()
+
+        assertEquals("文件读取 是 · 文件修改 是 · 执行命令 是", summary)
+    }
+
+    /**
+     * PLAN 下子代理继承只读：即使定义配了写工具，摘要也要如实显示不可用。
+     * 否则主代理照摘要把修改任务派出去，子代理跑到一半才被模式拦下。
+     */
+    @Test
+    fun capability_planModeShowsWriteAndExecBlocked() {
+        val summary = def().capabilitySummary(AgentMode.PLAN)
+
+        assertEquals("文件读取 是 · 文件修改 否（PLAN 只读） · 执行命令 否（PLAN 只读）", summary)
+    }
+
+    /** PLAN 下写/命令一律标注只读受限：定义本身只读时也统一带后缀，主代理不必猜原因。 */
+    @Test
+    fun capability_planModeAlwaysMarksWriteAndExecBlocked() {
+        val summary = def(allowed = listOf("readFile", "search")).capabilitySummary(AgentMode.PLAN)
+
+        assertEquals("文件读取 是 · 文件修改 否（PLAN 只读） · 执行命令 否（PLAN 只读）", summary)
+    }
+
+    @Test
+    fun canModifyOrExecute_tracksToolSet() {
+        assertTrue(def().canModifyOrExecute())
+        assertTrue(def(allowed = listOf("readFile", "editFile")).canModifyOrExecute())
+        assertFalse(def(allowed = listOf("readFile", "search", "list")).canModifyOrExecute())
+        assertFalse(def(disallowed = listOf("Bash", "terminal", "Shizuku", "writeFile", "editFile", "generateImage")).canModifyOrExecute())
     }
 
     /** 同名定义项目级覆盖全局，结果按名称排序。 */

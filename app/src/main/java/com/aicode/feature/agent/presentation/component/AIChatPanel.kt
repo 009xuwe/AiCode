@@ -664,6 +664,8 @@ fun AIChatPanel(
     val messagesState by viewModel.messagesState.collectAsStateWithLifecycle()
     val messages = messagesState.messages
     val pendingScroll by viewModel.pendingScrollMessage.collectAsStateWithLifecycle()
+    // 子代理卡片：状态与动作经 CompositionLocal 下发给 task 工具行，避免逐层透传。
+    val subAgentCards by viewModel.subAgentCards.collectAsStateWithLifecycle()
 
     val currentSessionId by viewModel.currentSessionId.collectAsStateWithLifecycle()
     // 工具卡片入场调度：只排本次浏览期间新追加到尾部的 TOOL 消息，逐个错开淡入。
@@ -1516,7 +1518,12 @@ fun AIChatPanel(
     CompositionLocalProvider(
         LocalMarkdownImageTransformer provides markdownImageTransformer,
         LocalImageViewer provides imageViewerState,
-        LocalAttachmentOpener provides attachmentOpener
+        LocalAttachmentOpener provides attachmentOpener,
+        LocalSubAgentCardHost provides SubAgentCardHost(
+            states = subAgentCards,
+            onOpen = { id -> viewModel.selectSession(id) },
+            onStop = { id -> viewModel.stopAgentSession(id) }
+        )
     ) {
         Scaffold(
         containerColor = MaterialTheme.colorScheme.background,

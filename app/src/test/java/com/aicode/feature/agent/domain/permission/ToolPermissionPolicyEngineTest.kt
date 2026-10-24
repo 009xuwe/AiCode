@@ -27,8 +27,17 @@ import org.junit.Test
  */
 class ToolPermissionPolicyEngineTest {
 
+    /** 最近一次带格式参数的 getString 收到的参数，供断言拦截原因里回显了命中规则与触发片段。 */
+    private val formatArgs = mutableListOf<String>()
+
     private fun appContext(): Context = mockk {
         every { getString(any()) } answers { "resource:${firstArg<Int>()}" }
+        // 带格式参数的文案（拦截原因回显命中规则 / 触发片段）：记录参数，返回资源 id 便于断言。
+        every { getString(any(), *anyVararg()) } answers {
+            formatArgs.clear()
+            formatArgs += secondArg<Array<Any?>>().map { it.toString() }
+            "resource:${firstArg<Int>()}"
+        }
     }
 
     private fun engine(vararg rules: PermissionRule, safetyDisabled: Boolean = false): ToolPermissionPolicyEngine {
@@ -469,6 +478,60 @@ class ToolPermissionPolicyEngineTest {
         )
         val r = e.evaluate(tool(ToolCapability.WRITE_WORKSPACE), "writeFile", emptyMap(), AgentMode.BUILD)
         assertEquals(ToolPermissionPolicyEngine.Verdict.DENY, r.verdict)
+    }
+
+    // ── 拦截原因回显：命中规则 / 触发片段 ──────────────────────────
+
+    /**
+     * DENY 只说「权限规则禁止」时，AI 不知道该改哪一段，只能整条换写法反复重试。
+     * 回显命中规则与被拦段之后，一次就能定位。
+     */
+    @Test
+    fun shellDeny_echoesMatchedRuleAndOffendingSegment() = runTest {
+        val e = engine(PermissionRule("Bash", "git push", PermissionDecision.DENY))
+        val r = e.evaluate(
+            tool(ToolCapability.EXECUTE_COMMANDS),
+            "Bash",
+            bash("ls && git push origin main"),
+            AgentMode.BUILD
+        )
+
+        assertEquals(ToolPermissionPolicyEngine.Verdict.DENY, r.verdict)
+        assertEquals("resource:${R.string.tool_command_rule_denied_detail}", r.denyReason)
+        assertEquals(listOf("Bash(git push)", "git push origin main"), formatArgs)
+    }
+
+    /** AUTO 下不可静态判定 + 疑似破坏性：原因里要写明是哪个构造，AI 才知道怎么拆。 */
+    @Test
+    fun autoMode_unanalyzableDestructiveReasonNamesConstruct() = runTest {
+        val e = engine()
+        val r = e.evaluate(
+            tool(ToolCapability.EXECUTE_COMMANDS),
+            "Bash",
+            bash("rm -rf \$(pwd)/build"),
+            AgentMode.AUTO
+        )
+
+        assertEquals(ToolPermissionPolicyEngine.Verdict.DENY, r.verdict)
+        assertTrue(r.denyReason!!.contains("触发构造：命令替换 \$(...)"))
+        assertTrue(r.denyReason!!.contains("elevate"))
+    }
+
+    /** 非 AUTO 下不可静态判定走弹窗：弹窗也要说明为什么不能「始终允许」。 */
+    @Test
+    fun buildMode_unanalyzableAskExplainsWhyNotRememberable() = runTest {
+        val e = engine()
+        val r = e.evaluate(
+            tool(ToolCapability.EXECUTE_COMMANDS),
+            "Bash",
+            bash("ls \$(pwd)"),
+            AgentMode.BUILD
+        )
+
+        assertEquals(ToolPermissionPolicyEngine.Verdict.ASK, r.verdict)
+        assertTrue(r.rememberablePatterns.isEmpty())
+        assertEquals("resource:${R.string.tool_command_unanalyzable_reason}", r.rememberDisabledReason)
+        assertEquals(listOf("命令替换 \$(...)"), formatArgs)
     }
 
     // ── remember：去重后逐条落库 ────────────────────────────────────

@@ -76,15 +76,36 @@ data class AgentDefinition(
      * 黑名单先生效，再与白名单取交集；支持 `mcp__server__*` 形式的通配，
      * 以便一次禁掉某个 MCP server 的全部工具。
      */
-    fun filterToolNames(all: List<String>): List<String> {
-        val afterDeny = all.filterNot { name -> disallowedTools.any { matches(it, name) } }
-        val afterAllow = if (allowedTools.isEmpty()) {
-            afterDeny
-        } else {
-            afterDeny.filter { name -> allowedTools.any { matches(it, name) } }
+    fun filterToolNames(all: List<String>): List<String> =
+        all.filter { allowsTool(it) }.filterNot { it == NESTED_TOOL }
+
+    /** 该定义是否允许 [toolName]：[filterToolNames] 与 [capabilitySummary] 共用同一判定，不维护第二套配置。 */
+    fun allowsTool(toolName: String): Boolean =
+        disallowedTools.none { matches(it, toolName) } &&
+            (allowedTools.isEmpty() || allowedTools.any { matches(it, toolName) })
+
+    /**
+     * 派发前给主代理看的能力摘要（读 / 写 / 命令三个维度）。
+     *
+     * 主代理看不到子代理的工具集，容易把修改任务派给只读子代理、让没有 Shell 的子代理跑验证命令，
+     * 白跑一整轮才发现。摘要随「可用子代理」清单注入，判定与 [filterToolNames] 同源。
+     *
+     * @param mode 当前会话模式。传给 PLAN 时，写与命令一律显示为「否（PLAN 只读）」——
+     *   子代理继承父会话模式，此时定义里配了写工具也用不上，不提前说清就会派错活。
+     */
+    fun capabilitySummary(mode: AgentMode? = null): String {
+        val planReadOnly = mode == AgentMode.PLAN
+        fun flag(group: Set<String>, blockedByMode: Boolean = false): String = when {
+            blockedByMode && planReadOnly -> "否（PLAN 只读）"
+            group.any { allowsTool(it) } -> "是"
+            else -> "否"
         }
-        return afterAllow.filterNot { it == NESTED_TOOL }
+        return "文件读取 ${flag(READ_TOOLS)} · 文件修改 ${flag(WRITE_TOOLS, blockedByMode = true)}" +
+            " · 执行命令 ${flag(EXEC_TOOLS, blockedByMode = true)}"
     }
+
+    /** 该定义（不叠加模式约束）是否具备写文件或执行命令的能力。 */
+    fun canModifyOrExecute(): Boolean = (WRITE_TOOLS + EXEC_TOOLS).any { allowsTool(it) }
 
     private fun matches(pattern: String, toolName: String): Boolean {
         val p = pattern.trim()
@@ -107,6 +128,11 @@ data class AgentDefinition(
 
         /** 仅子代理可用的工具（子→主发消息）；主会话工具集剔除它。 */
         const val PARENT_MESSAGE_TOOL = "messageParent"
+
+        /** [capabilitySummary] 的能力分组：新增同类工具时补进对应组，摘要才不会漏判。 */
+        private val READ_TOOLS = setOf("readFile", "list", "search", "viewImage")
+        private val WRITE_TOOLS = setOf("writeFile", "editFile", "generateImage")
+        private val EXEC_TOOLS = setOf("Bash", "terminal", "Shizuku")
     }
 }
 

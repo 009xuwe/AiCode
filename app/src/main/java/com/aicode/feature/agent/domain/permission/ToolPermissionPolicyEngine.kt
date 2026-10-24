@@ -141,7 +141,7 @@ class ToolPermissionPolicyEngine @Inject constructor(
                     // 命令替换/子 shell/绝对路径重定向等无法静态判定的构造，删除目标不可知；
                     // 若同时疑似破坏性，宁可拦下（可提权），避免绕过安全防护。
                     if (!analysis.analyzable && looksDestructive(command)) {
-                        return elevationOrDeny(REASON_UNANALYZABLE_DESTRUCTIVE, args)
+                        return elevationOrDeny(unanalyzableReason(analysis), args)
                     }
                 }
             }
@@ -229,6 +229,15 @@ class ToolPermissionPolicyEngine @Inject constructor(
      */
     private fun looksDestructive(command: String): Boolean =
         command.contains('>') || command.contains("-delete") || DESTRUCTIVE_PROGRAM.containsMatchIn(command)
+
+    /**
+     * 不可静态判定时的拦截原因：附带具体触发构造。
+     * 只说「无法静态分析」时 AI 不知道是 `$(...)` 还是绝对路径重定向，只能整条反复重试。
+     */
+    private fun unanalyzableReason(analysis: ShellCommandParser.Analysis): String {
+        val constructs = analysis.blockers.joinToString("、").ifEmpty { "未知构造" }
+        return "$REASON_UNANALYZABLE_DESTRUCTIVE（触发构造：$constructs）"
+    }
 
     /**
      * 灾难性删除的裁决：携带提权参数时降级为一次性用户授权（ASK），否则硬拒绝（DENY）
@@ -351,8 +360,21 @@ class ToolPermissionPolicyEngine @Inject constructor(
         }
 
         // 1) DENY 优先（含对内置安全白名单的覆盖）：任一段命中 DENY 即拒。
-        if (analysis.segments.any { seg -> deny.any { ShellCommandParser.matches(it.pattern, seg) } }) {
-            return EvalResult(Verdict.DENY, emptyList(), denyReason = appContext.getString(R.string.tool_command_rule_denied))
+        val deniedByPattern = deny.firstOrNull { rule ->
+            analysis.segments.any { seg -> ShellCommandParser.matches(rule.pattern, seg) }
+        }
+        if (deniedByPattern != null) {
+            // 回显命中规则与被拦的段：AI 才知道是哪一段越界，而不是整条命令反复重试。
+            val segment = analysis.segments.first { ShellCommandParser.matches(deniedByPattern.pattern, it) }
+            return EvalResult(
+                Verdict.DENY,
+                emptyList(),
+                denyReason = appContext.getString(
+                    R.string.tool_command_rule_denied_detail,
+                    deniedByPattern.toCompact(),
+                    segment.joinToString(" ")
+                )
+            )
         }
 
         // 2) Shizuku 高危工具：无论内置白名单或已记忆规则，一律弹窗且不可记忆。
@@ -361,7 +383,17 @@ class ToolPermissionPolicyEngine @Inject constructor(
         }
 
         // 3) 不可静态判定 → 必须弹窗、不可记忆（内置白名单也不适用）。
-        if (!analysis.analyzable) return EvalResult(Verdict.ASK, emptyList())
+        if (!analysis.analyzable) {
+            return EvalResult(
+                Verdict.ASK,
+                emptyList(),
+                // 把触发构造写进弹窗说明：用户与 AI 都能看出这条命令为什么没法自动判定。
+                rememberDisabledReason = appContext.getString(
+                    R.string.tool_command_unanalyzable_reason,
+                    analysis.blockers.joinToString("、")
+                )
+            )
+        }
 
         // 4) 内置安全白名单：每段都命中安全前缀（ls/git status 等）→ 自动放行，不弹窗。
         if (analysis.segments.isNotEmpty() &&

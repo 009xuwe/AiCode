@@ -23,10 +23,13 @@ object ShellCommandParser {
     /**
      * @param segments 顶层每一段的 token 列表（已去引号、按空白分词；重定向算子不入 token）。
      * @param analyzable 是否可静态判定；false 表示永不自动放行/记忆，只能单次放行。
+     * @param blockers 触发「不可静态判定」的具体构造（如 `命令替换 $(...)`、`子 shell 括号`）。
+     *   供授权弹窗与拦截原因回显：不告诉 AI 是哪一段出的问题，它只能反复整条重试。
      */
     data class Analysis(
         val segments: List<List<String>>,
-        val analyzable: Boolean
+        val analyzable: Boolean,
+        val blockers: List<String> = emptyList()
     )
 
     private const val NONE = 0
@@ -41,8 +44,14 @@ object ShellCommandParser {
         var current = mutableListOf<String>()
         val token = StringBuilder()
         var tokenStarted = false
-        var analyzable = true
+        // 触发「不可静态判定」的构造清单：去重后随 Analysis 返回，供上层解释拦截原因。
+        val blockers = mutableListOf<String>()
+        fun block(reason: String) {
+            if (reason !in blockers) blockers.add(reason)
+        }
         var quote = NONE
+        // 命令替换 `$(...)` 内部的括号深度：这些括号只是命令替换的一部分，不应再记成「子 shell」。
+        var substitutionDepth = 0
         // 上一个算子是输出重定向（`>`/`>>`）时为 true：下一个 token 若是绝对路径则判定为不可静态判定。
         var expectRedirectTarget = false
         var i = 0
@@ -52,7 +61,7 @@ object ShellCommandParser {
             if (tokenStarted) {
                 val t = token.toString()
                 if (expectRedirectTarget) {
-                    if (t.startsWith("/")) analyzable = false
+                    if (t.startsWith("/")) block("输出重定向到绝对路径 $t")
                     expectRedirectTarget = false
                 }
                 current.add(t)
@@ -79,9 +88,17 @@ object ShellCommandParser {
                     when {
                         c == '"' -> { quote = NONE; tokenStarted = true; i++ }
                         // 双引号内命令替换/反引号仍会执行 → 不可静态判定。
-                        c == '`' -> { analyzable = false; token.append(c); tokenStarted = true; i++ }
+                        c == '`' -> { block("反引号命令替换"); token.append(c); tokenStarted = true; i++ }
                         c == '$' && i + 1 < n && command[i + 1] == '(' -> {
-                            analyzable = false; token.append(c); tokenStarted = true; i++
+                            block("命令替换 \$(...)"); substitutionDepth++
+                            token.append('$'); token.append('('); tokenStarted = true; i += 2
+                        }
+                        // 引号内的括号是字面量，只用于维护命令替换的配对深度。
+                        c == ')' && substitutionDepth > 0 -> {
+                            substitutionDepth--; token.append(c); tokenStarted = true; i++
+                        }
+                        c == '(' && substitutionDepth > 0 -> {
+                            substitutionDepth++; token.append(c); tokenStarted = true; i++
                         }
                         else -> { token.append(c); tokenStarted = true; i++ }
                     }
@@ -98,9 +115,20 @@ object ShellCommandParser {
                                 i += 2
                             } else i++
                         }
-                        // 反引号 / 分组括号 / 进程替换 `<( >(`（均含裸 `(`）→ 不可静态判定。
-                        c == '`' || c == '(' || c == ')' -> {
-                            analyzable = false; token.append(c); tokenStarted = true; i++
+                        c == '$' && i + 1 < n && command[i + 1] == '(' -> {
+                            block("命令替换 \$(...)"); substitutionDepth++
+                            token.append('$'); token.append('('); tokenStarted = true; i += 2
+                        }
+                        c == '`' -> { block("反引号命令替换"); token.append(c); tokenStarted = true; i++ }
+                        // 分组括号 / 子 shell / 进程替换 `<( >(`（均含裸 `(`）→ 不可静态判定。
+                        c == '(' && substitutionDepth > 0 -> {
+                            substitutionDepth++; token.append(c); tokenStarted = true; i++
+                        }
+                        c == ')' && substitutionDepth > 0 -> {
+                            substitutionDepth--; token.append(c); tokenStarted = true; i++
+                        }
+                        c == '(' || c == ')' -> {
+                            block("子 shell 或分组括号"); token.append(c); tokenStarted = true; i++
                         }
                         // 顶层段分隔符。
                         c == '\n' || c == ';' -> { flushSegment(); i++ }
@@ -115,9 +143,9 @@ object ShellCommandParser {
                 }
             }
         }
-        if (quote != NONE) analyzable = false // 未闭合引号：不可信
+        if (quote != NONE) block("未闭合的引号") // 未闭合引号：不可信
         flushSegment()
-        return Analysis(segments, analyzable)
+        return Analysis(segments, blockers.isEmpty(), blockers)
     }
 
     /** 跳过段首环境赋值后的有效 token（用于取程序名与匹配）。 */

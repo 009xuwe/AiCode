@@ -254,6 +254,7 @@ fun SettingsScreen(
     val compactionModel by viewModel.compactionModel.collectAsStateWithLifecycle()
     val titleProviderId by viewModel.titleProviderId.collectAsStateWithLifecycle()
     val titleModel by viewModel.titleModel.collectAsStateWithLifecycle()
+    val subagentTierSelections by viewModel.subagentTierSelections.collectAsStateWithLifecycle()
     val imageGenProviderId by viewModel.imageGenProviderId.collectAsStateWithLifecycle()
     val imageGenModel by viewModel.imageGenModel.collectAsStateWithLifecycle()
     val modelMetadata by viewModel.modelMetadata.collectAsStateWithLifecycle()
@@ -956,6 +957,7 @@ fun SettingsScreen(
                     titleModel = titleModel,
                     imageGenProviderId = imageGenProviderId,
                     imageGenModel = imageGenModel,
+                    subagentTierSelections = subagentTierSelections,
                     modelMetadata = modelMetadata,
                     onLoadMetadata = { viewModel.loadAllModelMetadata() },
                     onSelectVisionModel = { pid, m -> viewModel.setVisionModel(pid, m) },
@@ -965,7 +967,9 @@ fun SettingsScreen(
                     onSelectTitleModel = { pid, m -> viewModel.setTitleModel(pid, m) },
                     onClearTitleModel = { viewModel.clearTitleModel() },
                     onSelectImageGenModel = { pid, m -> viewModel.setImageGenModel(pid, m) },
-                    onClearImageGenModel = { viewModel.clearImageGenModel() }
+                    onClearImageGenModel = { viewModel.clearImageGenModel() },
+                    onSelectSubagentTierModel = { tier, pid, m -> viewModel.setSubagentTierModel(tier, pid, m) },
+                    onClearSubagentTierModel = { tier -> viewModel.clearSubagentTier(tier) }
                 )
                 SettingsSection.Mcp -> McpSection(
                     entries = mcpEntries,
