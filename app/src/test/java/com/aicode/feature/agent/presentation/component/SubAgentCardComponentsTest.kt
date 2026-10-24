@@ -110,4 +110,63 @@ class SubAgentCardComponentsTest {
 
         assertEquals("修复登录空指针", parsed!!.description)
     }
+
+    /** 批量任务创建：能正确从 tasks 入参与 subagents 结果中解析多个子任务项。 */
+    @Test
+    fun parse_readsBatchTasksAndSubagents() {
+        val batchArgs = """
+            {
+              "action": "create",
+              "tasks": [
+                {"description": "调研方案A", "agent": "explorer", "prompt": "调研A"},
+                {"description": "调研方案B", "agent": "writer", "prompt": "调研B"}
+              ]
+            }
+        """.trimIndent()
+
+        val batchResult = """
+            {
+              "status": "success",
+              "data": {
+                "count": 2,
+                "subagents": [
+                  {"id": "sub-101", "agent": "explorer", "description": "调研方案A", "tier": "light", "model": "m1"},
+                  {"id": "sub-102", "agent": "writer", "description": "调研方案B", "tier": "standard", "model": "m2"}
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val parsed = parseSubAgentDispatch(batchArgs, batchResult)
+        assertNotNull(parsed)
+        assertEquals(2, parsed!!.items.size)
+        assertEquals("sub-101", parsed.items[0].subSessionId)
+        assertEquals("explorer", parsed.items[0].agentName)
+        assertEquals("调研方案A", parsed.items[0].description)
+        assertEquals("sub-102", parsed.items[1].subSessionId)
+        assertEquals("writer", parsed.items[1].agentName)
+        assertEquals("调研方案B", parsed.items[1].description)
+    }
+
+    /** 批量任务在流式尚未返回结果时，能按 tasks 参数生成占位项。 */
+    @Test
+    fun parse_batchTasksStreamingWithoutResult() {
+        val batchArgs = """
+            {
+              "action": "create",
+              "tasks": [
+                {"description": "任务1", "prompt": "指令1"},
+                {"description": "任务2", "prompt": "指令2"}
+              ]
+            }
+        """.trimIndent()
+
+        val parsed = parseSubAgentDispatch(batchArgs, null)
+        assertNotNull(parsed)
+        assertEquals(2, parsed!!.items.size)
+        assertNull(parsed.items[0].subSessionId)
+        assertEquals("任务1", parsed.items[0].description)
+        assertNull(parsed.items[1].subSessionId)
+        assertEquals("任务2", parsed.items[1].description)
+    }
 }
