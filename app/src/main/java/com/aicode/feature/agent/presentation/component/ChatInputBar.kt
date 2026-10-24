@@ -96,6 +96,9 @@ import com.aicode.feature.agent.domain.model.GoalStatus
 import com.aicode.feature.agent.presentation.SessionGoalUi
 import com.aicode.feature.agent.domain.model.ReasoningEffort
 import com.aicode.feature.agent.domain.model.TodoItem
+import com.aicode.feature.agent.domain.provider.ReasoningProtocol
+import com.aicode.feature.agent.domain.provider.reasoningCapabilityOf
+import com.aicode.feature.agent.domain.provider.reasoningProtocolOf
 import com.aicode.feature.agent.domain.permission.PermissionChoice
 import com.aicode.feature.agent.domain.tool.PendingToolPermission
 import com.aicode.feature.agent.domain.tool.mode.PlanApprovalRequest
@@ -613,20 +616,21 @@ internal fun ChatInputBar(
                             )
                         }
 
-                        // 元数据未命中时（如中转站改了模型名）退回全部档位由用户自选：
-                        // 这类模型可能强制开启推理，隐藏按钮会导致无法调档。
-                        val availableEfforts = remember(activeProvider, modelMetadata) {
-                            activeProvider?.let { provider ->
-                                modelMetadata[modelMetadataKey(provider.id, provider.effectiveModel)]?.reasoningEffortOptions
-                                    ?.let { ReasoningEffort.fromValues(it) }
-                            }.orEmpty().ifEmpty { ReasoningEffort.entries }
+                        // 思考能力与实际请求同源：已知就只列真实档位，未知（中转站改名 / 自定义模型）
+                        // 才退回全部档位并由弹层标注「可能不生效」。
+                        val capability = reasoningCapabilityOf(activeProvider, activeProvider?.effectiveModel.orEmpty(), modelMetadata)
+                        val hasReasoningControl = !capability.isKnown ||
+                            capability.levels.isNotEmpty() || capability.canDisable
+                        if (hasReasoningControl) {
+                            ReasoningEffortSelector(
+                                effort = reasoningEffort,
+                                capability = capability,
+                                protocol = activeProvider?.let { reasoningProtocolOf(it) } ?: ReasoningProtocol.OPENAI_CHAT,
+                                model = activeProvider?.effectiveModel.orEmpty(),
+                                onChange = onReasoningEffortChange,
+                                enabled = !isBusy
+                            )
                         }
-                        ReasoningEffortSelector(
-                            effort = reasoningEffort,
-                            availableEfforts = availableEfforts,
-                            onChange = onReasoningEffortChange,
-                            enabled = !isBusy
-                        )
                     }
                     UploadIconButton(
                         enabled = !isBusy,

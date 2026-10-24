@@ -50,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +67,8 @@ import com.aicode.core.theme.AppThemePreset
 import com.aicode.core.theme.Spacing
 import com.aicode.core.theme.isDynamicColorSupported
 import com.aicode.core.theme.semanticColors
+import com.aicode.core.ui.ListSelectionState
+import com.aicode.core.ui.SelectionToggleAction
 import com.aicode.core.ui.pageEnter
 import com.aicode.core.ui.pageExit
 import com.aicode.core.util.LogLevel
@@ -111,6 +114,7 @@ import compose.icons.feathericons.Edit2
 import compose.icons.feathericons.PieChart
 import compose.icons.feathericons.Plus
 import compose.icons.feathericons.RefreshCw
+import compose.icons.feathericons.RotateCcw
 import compose.icons.feathericons.Save
 import compose.icons.feathericons.Server
 import compose.icons.feathericons.Shield
@@ -290,6 +294,11 @@ fun SettingsScreen(
 
     var section by remember { mutableStateOf(SettingsSection.Menu) }
     var logReturnSection by remember { mutableStateOf(SettingsSection.Menu) }
+    // 各列表页的多选状态：顶栏「多选」开关在本页 Scaffold 里，所以状态必须提到这里统一持有。
+    // 用普通 map（非 snapshot）新建容器，避免在组合期写快照状态；Compose 状态在 ListSelectionState 内部。
+    val listSelections = remember { mutableMapOf<SettingsSection, ListSelectionState>() }
+    fun selectionFor(target: SettingsSection): ListSelectionState =
+        listSelections.getOrPut(target) { ListSelectionState() }
     var editingProvider by remember { mutableStateOf<AIProviderConfig?>(null) }
     var showAddProviderSheet by remember { mutableStateOf(false) }
     var providerPresetPrefill by remember { mutableStateOf<ProviderPreset?>(null) }
@@ -348,8 +357,8 @@ fun SettingsScreen(
     var selectedSkill by remember { mutableStateOf<SkillUiEntry?>(null) }
     var skillToDelete by remember { mutableStateOf<SkillUiEntry?>(null) }
 
-    // 自定义提示词：右上角「+」弹层可见性 + 编辑目标（新建/编辑/固定片段）
-    var showPromptsAddSheet by remember { mutableStateOf(false) }
+    // 自定义提示词：编辑目标（新建/编辑/固定片段）+ 「重置」确认弹窗可见性
+    var showResetPrompts by remember { mutableStateOf(false) }
     var promptEditTarget by remember { mutableStateOf<PromptEditTarget?>(null) }
     var selectedPrompt by remember { mutableStateOf<PromptFragment?>(null) }
     var showPromptsAnnouncement by remember { mutableStateOf(false) }
@@ -458,6 +467,11 @@ fun SettingsScreen(
     // 滚动位置必须提到 AnimatedContent 之外持有：菜单页作为分区分支被切走时会被 dispose，
     // 内部 rememberScrollState 一并丢弃，从二级页返回就跳回顶部。
     val menuScrollState = rememberScrollState()
+    // 同理：一级 / 详情页整块内容切走后会被 AnimatedContent dispose，内部 rememberScrollState、
+    // rememberLazyListState 一并丢失，从下一级页面返回就跳回顶部（供应商、技能、MCP 等所有列表都中招）。
+    // 用 SaveableStateHolder 按分区名接住这些 rememberSaveable 状态；编辑类页面不走这一步
+    // （它们在 AnimatedContent 里是独立分支），否则每次进编辑器会把上次的输入恢复出来。
+    val sectionStateHolder = rememberSaveableStateHolder()
     val menuBody: @Composable () -> Unit = {
         SettingsMenu(
             scrollState = menuScrollState,
@@ -625,6 +639,15 @@ fun SettingsScreen(
                 )
 
             else -> {
+            // 用分区名接住本页内部的滚动位置等 rememberSaveable 状态，返回时原样恢复（详见 sectionStateHolder）。
+            // 详情页要带上条目身份：换成另一个技能 / 子代理 / 提示词进来，不能继承上一条的滚动位置。
+            val stateKey: String = when (current) {
+                SettingsSection.SkillDetail -> "SkillDetail:${selectedSkill?.name.orEmpty()}"
+                SettingsSection.SubAgentDetail -> "SubAgentDetail:${selectedSubAgent?.name.orEmpty()}"
+                SettingsSection.PromptDetail -> "PromptDetail:${selectedPrompt?.number ?: 0}"
+                else -> current.name
+            }
+            sectionStateHolder.SaveableStateProvider(stateKey) {
             // 存储页的顶栏刷新按钮与页面内容要共用同一个 ViewModel，故在此分支创建；
             // 它的构造即触发一次全盘统计，不能提到 SettingsScreen 顶层（那样每次进设置页都会扫盘）。
             val storageViewModel: com.aicode.feature.settings.presentation.StorageViewModel? =
@@ -664,16 +687,24 @@ fun SettingsScreen(
                 },
                 actions = {
                     when (current) {
-                        SettingsSection.Providers -> IconButton(
-                            onClick = {
-                                providerPresetPrefill = null
-                                showAddProviderSheet = true
-                            },
-                            modifier = Modifier.onboardingTarget(OnboardingStep.PROVIDER_ADD)
-                        ) {
-                            Icon(FeatherIcons.Plus, contentDescription = stringResource(R.string.settings_add_provider))
+                        SettingsSection.Providers -> {
+                            if (providers.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.Providers))
+                            }
+                            IconButton(
+                                onClick = {
+                                    providerPresetPrefill = null
+                                    showAddProviderSheet = true
+                                },
+                                modifier = Modifier.onboardingTarget(OnboardingStep.PROVIDER_ADD)
+                            ) {
+                                Icon(FeatherIcons.Plus, contentDescription = stringResource(R.string.settings_add_provider))
+                            }
                         }
                         SettingsSection.Mcp -> {
+                            if (mcpEntries.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.Mcp))
+                            }
                             IconButton(onClick = { viewModel.reloadMcp() }) {
                                 if (mcpReloading) {
                                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -717,6 +748,9 @@ fun SettingsScreen(
                             }
                         }
                         SettingsSection.ContainerDownloads -> {
+                            if (downloadedImages.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.ContainerDownloads))
+                            }
                             IconButton(onClick = { showImageSourceSheet = true }) {
                                 Icon(
                                     FeatherIcons.Globe,
@@ -726,15 +760,20 @@ fun SettingsScreen(
                                 )
                             }
                         }
-                        SettingsSection.Skills -> IconButton(onClick = {
-                            showSkillAddSheet = true
-                        }) {
-                            Icon(
-                                FeatherIcons.Plus,
-                                contentDescription = stringResource(R.string.skills_add),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                                modifier = Modifier.size(22.dp)
-                            )
+                        SettingsSection.Skills -> {
+                            if (skills.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.Skills))
+                            }
+                            IconButton(onClick = {
+                                showSkillAddSheet = true
+                            }) {
+                                Icon(
+                                    FeatherIcons.Plus,
+                                    contentDescription = stringResource(R.string.skills_add),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                         SettingsSection.SkillDetail -> selectedSkill?.let { entry ->
                             IconButton(onClick = {
@@ -750,17 +789,22 @@ fun SettingsScreen(
                                 )
                             }
                         }
-                        SettingsSection.SubAgents -> IconButton(onClick = {
-                            editingSubAgent = null
-                            subAgentEditorReturn = SettingsSection.SubAgents
-                            section = SettingsSection.SubAgentEditor
-                        }) {
-                            Icon(
-                                FeatherIcons.Plus,
-                                contentDescription = stringResource(R.string.subagent_add),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                                modifier = Modifier.size(22.dp)
-                            )
+                        SettingsSection.SubAgents -> {
+                            if (subAgents.isNotEmpty()) {
+                                SelectionToggleAction(selectionFor(SettingsSection.SubAgents))
+                            }
+                            IconButton(onClick = {
+                                editingSubAgent = null
+                                subAgentEditorReturn = SettingsSection.SubAgents
+                                section = SettingsSection.SubAgentEditor
+                            }) {
+                                Icon(
+                                    FeatherIcons.Plus,
+                                    contentDescription = stringResource(R.string.subagent_add),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                         SettingsSection.SubAgentDetail -> selectedSubAgent?.let { entry ->
                             IconButton(onClick = {
@@ -792,6 +836,9 @@ fun SettingsScreen(
                             }
                         }
                         SettingsSection.Prompts -> {
+                            // 多选：批量删除自定义提示词（内置来源的片段不可选）。
+                            SelectionToggleAction(selectionFor(SettingsSection.Prompts))
+                            // 帮助入口只保留这一个：原来「+」弹层里的帮助项与它重复，弹层已去掉。
                             IconButton(onClick = { showPromptsAnnouncement = true }) {
                                 Icon(
                                     FeatherIcons.Info,
@@ -800,7 +847,21 @@ fun SettingsScreen(
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
-                            IconButton(onClick = { showPromptsAddSheet = true }) {
+                            // 重置：清空自定义提示词，各编号回落到内置（排在「+」左侧）。
+                            IconButton(onClick = { showResetPrompts = true }) {
+                                Icon(
+                                    FeatherIcons.RotateCcw,
+                                    contentDescription = stringResource(R.string.prompts_reset_custom),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            // 「+」直接进新建页，不再弹方式选择。
+                            IconButton(onClick = {
+                                promptEditTarget = PromptEditTarget(null)
+                                promptEditorReturn = SettingsSection.Prompts
+                                section = SettingsSection.PromptEditor
+                            }) {
                                 Icon(
                                     FeatherIcons.Plus,
                                     contentDescription = stringResource(R.string.prompts_add_prompt),
@@ -873,6 +934,7 @@ fun SettingsScreen(
                 )
                 SettingsSection.Providers -> ProvidersSection(
                     providers = providers,
+                    selection = selectionFor(SettingsSection.Providers),
                     onEdit = {
                         editingProvider = it
                         section = SettingsSection.ProviderEditor
@@ -880,7 +942,9 @@ fun SettingsScreen(
                     onDelete = { viewModel.deleteProvider(it.id) },
                     onReorder = { fromIndex, toIndex ->
                         viewModel.reorderProviders(fromIndex, toIndex)
-                    }
+                    },
+                    onBatchDelete = { ids -> viewModel.deleteProviders(ids) },
+                    onBatchSetEnabled = { ids, enabled -> viewModel.setProvidersEnabled(ids, enabled) }
                 )
                 SettingsSection.DefaultModels -> DefaultModelsSection(
                     providers = providers,
@@ -907,21 +971,34 @@ fun SettingsScreen(
                     entries = mcpEntries,
                     statuses = mcpStatuses,
                     reloading = mcpReloading,
+                    selection = selectionFor(SettingsSection.Mcp),
                     onReload = { viewModel.reloadMcp() },
                     onToggle = { name, enabled, scope -> viewModel.setMcpServerEnabled(name, enabled, scope) },
                     onEdit = {
                         editingMcp = it
                         showMcpDialog = true
                     },
-                    onDelete = { name, scope -> viewModel.deleteMcpServer(name, scope) }
+                    onDelete = { name, scope -> viewModel.deleteMcpServer(name, scope) },
+                    onBatchDelete = { targets -> viewModel.deleteMcpServers(targets) },
+                    onBatchSetEnabled = { targets, enabled -> viewModel.setMcpServersEnabled(targets, enabled) },
+                    onBatchReconnect = { names -> viewModel.reconnectMcpServers(names) }
                 )
                 SettingsSection.Skills -> SkillsSection(
                     projectName = currentProjectName,
                     entries = skills,
+                    selection = selectionFor(SettingsSection.Skills),
+                    deletingInProgress = skillDeleting.isNotEmpty(),
                     onDelete = { skillToDelete = it },
                     onOpenDetail = {
+                        selectionFor(SettingsSection.Skills).exit()
                         selectedSkill = it
                         section = SettingsSection.SkillDetail
+                    },
+                    onBatchDelete = { targets ->
+                        viewModel.deleteSkills(targets.map { it.name to it.scope })
+                    },
+                    onBatchSetEnabled = { targets, enabled ->
+                        viewModel.setSkillsEnabled(targets.map { it.name to it.scope }, enabled)
                     }
                 )
                 SettingsSection.Prompts -> {
@@ -931,26 +1008,32 @@ fun SettingsScreen(
                     LaunchedEffect(Unit) { promptsViewModel.refresh() }
                     PromptsSection(
                         state = promptsState,
+                        selection = selectionFor(SettingsSection.Prompts),
                         onOpenFragment = { fragment ->
+                            selectionFor(SettingsSection.Prompts).exit()
                             selectedPrompt = fragment
                             section = SettingsSection.PromptDetail
                         },
                         onDeleteFragment = promptsViewModel::deleteFragment,
                         onReorder = promptsViewModel::reorderFragments,
-                        onToggleBuiltinDisabled = promptsViewModel::setBuiltinDisabled
+                        onToggleBuiltinDisabled = promptsViewModel::setBuiltinDisabled,
+                        onBatchDeleteFragments = promptsViewModel::deleteFragments
                     )
-                    if (showPromptsAddSheet) {
-                        PromptsAddSheet(
-                            onDismiss = { showPromptsAddSheet = false },
-                            onAddFragment = {
-                                showPromptsAddSheet = false
-                                promptEditTarget = PromptEditTarget(null)
-                                promptEditorReturn = SettingsSection.Prompts
-                                section = SettingsSection.PromptEditor
+                    if (showResetPrompts) {
+                        AlertDialog(
+                            onDismissRequest = { showResetPrompts = false },
+                            title = { Text(stringResource(R.string.prompts_reset_custom)) },
+                            text = { Text(stringResource(R.string.prompts_reset_confirm)) },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    promptsViewModel.resetCustomFragments()
+                                    showResetPrompts = false
+                                }) { Text(stringResource(R.string.common_reset)) }
                             },
-                            onHelp = {
-                                showPromptsAddSheet = false
-                                showPromptsAnnouncement = true
+                            dismissButton = {
+                                TextButton(onClick = { showResetPrompts = false }) {
+                                    Text(stringResource(R.string.common_cancel))
+                                }
                             }
                         )
                     }
@@ -980,10 +1063,19 @@ fun SettingsScreen(
                 SettingsSection.SubAgents -> SubAgentsSection(
                     projectName = currentProjectName,
                     entries = subAgents,
+                    selection = selectionFor(SettingsSection.SubAgents),
+                    deletingInProgress = subAgentDeleting.isNotEmpty(),
                     onDelete = { subAgentToDelete = it },
                     onOpenDetail = {
+                        selectionFor(SettingsSection.SubAgents).exit()
                         selectedSubAgent = it
                         section = SettingsSection.SubAgentDetail
+                    },
+                    onBatchDelete = { targets ->
+                        viewModel.deleteSubAgents(targets.map { it.name to it.scope })
+                    },
+                    onBatchSetEnabled = { targets, enabled ->
+                        viewModel.setSubAgentsEnabled(targets.map { it.name to it.scope }, enabled)
                     }
                 )
                 SettingsSection.SubAgentDetail -> selectedSubAgent?.let { entry ->
@@ -1030,10 +1122,12 @@ fun SettingsScreen(
                     downloadedImages = downloadedImages,
                     sourceUnavailableIds = sourceUnavailableIds,
                     selectedSourceName = viewModel.sourceDisplayName(selectedImageSource, languageTag),
+                    selection = selectionFor(SettingsSection.ContainerDownloads),
                     onDownload = { entry -> viewModel.startContainerImageDownload(entry, selectedImageSource) },
                     onCancel = { viewModel.cancelContainerImageDownload() },
                     onImport = { entryId, fileUri -> viewModel.importDownloadedImage(entryId, fileUri) },
-                    onDelete = { entryId -> viewModel.deleteDownloadedImage(entryId) }
+                    onDelete = { entryId -> viewModel.deleteDownloadedImage(entryId) },
+                    onBatchDelete = { ids -> viewModel.deleteDownloadedImages(ids) }
                 )
                 SettingsSection.Proxy -> ProxySection(
                     config = proxyConfig,
@@ -1116,6 +1210,7 @@ fun SettingsScreen(
             }
         }
     }
+        } // SaveableStateProvider 结束
         } // else 分支结束（storageViewModel 作用域）
         } // 详情区 when 结束
         } // AnimatedContent 结束
@@ -1301,7 +1396,7 @@ fun SettingsScreen(
     }
 
     skillToDelete?.let { target ->
-        val deleting = skillDeleting == target.name
+        val deleting = target.name in skillDeleting
         // 删除进行中保持弹窗（转圈），完成后才关闭，避免无反馈地“突然消失”。
         var deleteStarted by remember(target) { mutableStateOf(false) }
         LaunchedEffect(deleteStarted, deleting) {
@@ -1337,7 +1432,7 @@ fun SettingsScreen(
     SkillImportResultDialog(state = skillImportState, onDismiss = { viewModel.clearSkillImportState() })
 
     subAgentToDelete?.let { target ->
-        val deleting = subAgentDeleting == target.name
+        val deleting = target.name in subAgentDeleting
         var deleteStarted by remember(target) { mutableStateOf(false) }
         LaunchedEffect(deleteStarted, deleting) {
             if (deleteStarted && !deleting) subAgentToDelete = null

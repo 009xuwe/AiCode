@@ -145,6 +145,7 @@
     <string name="settings_token_stats_calls_suffix2">%1$d calls</string>
     <string name="settings_token_stats_col_model">Model</string>
     <string name="settings_token_stats_col_reasoning_effort">Effort</string>
+    <string name="settings_token_stats_col_reasoning_wire">Sent as</string>
     <string name="settings_token_stats_col_provider">Vendor</string>
     <string name="settings_token_stats_col_input">Input</string>
     <string name="settings_token_stats_col_output">Output</string>
@@ -388,6 +389,8 @@
     <string name="common_show">Show</string>
     <string name="common_local">Local</string>
     <string name="common_model">Model</string>
+    <!-- Level name followed by its API value, e.g. "Max (max)", to match model docs and error text. -->
+    <string name="common_label_with_api">%1$s (%2$s)</string>
     <string name="common_add">Add</string>
     <string name="credential_add">Add Credential</string>
     <string name="common_username">Username</string>
@@ -450,6 +453,17 @@
     <string name="chat_reasoning_effort_high">High</string>
     <string name="chat_reasoning_effort_xhigh">Extra high</string>
     <string name="chat_reasoning_effort_max">Max</string>
+    <string name="chat_reasoning_toggle">Thinking</string>
+    <string name="chat_reasoning_off_short">Off</string>
+    <string name="chat_reasoning_default_tag">Default</string>
+    <string name="chat_reasoning_effective_tag">Active</string>
+    <string name="chat_reasoning_effective">Effective: %1$s</string>
+    <string name="chat_reasoning_unknown_hint">Levels are unknown for this model, so the selected level may not take effect</string>
+    <string name="chat_reasoning_cannot_disable">This model always thinks; the lowest level is used instead</string>
+    <string name="chat_reasoning_endpoint_weak">This endpoint may ignore &quot;None&quot;; switch to the provider\'s Responses endpoint to fully disable thinking</string>
+    <string name="provider_model_section_reasoning">Reasoning levels</string>
+    <string name="provider_model_reasoning_hint">Tick only the levels this model really accepts; leave all unticked to use the built-in capability table</string>
+    <string name="provider_model_reasoning_can_disable">Thinking can be turned off</string>
     <string name="chat_open_file_missing">File not found or has been moved</string>
     <string name="chat_open_file_unshareable">This file\'s location cannot be shared with other apps</string>
     <string name="chat_open_file_no_app">No app available to open this file</string>
@@ -481,7 +495,7 @@
     <string name="about_version">Version</string>
     <string name="about_github_repo">GitHub Repository</string>
     <string name="about_license">Open Source License</string>
-    <string name="about_description">AI-powered code editor running on Android · Built-in Terminal · AI Agent · MCP Protocol</string>
+    <string name="about_description">Universal AI Coding Agent for Android · Linux dev environment · Local &amp; remote SSH</string>
     <string name="about_check_update">Check for updates</string>
     <string name="about_checking_update">Querying GitHub for the latest version…</string>
     <string name="about_up_to_date">Already up to date</string>
@@ -601,6 +615,7 @@
     <string name="backup_net_add_target">Add backup target</string>
     <string name="backup_net_edit_target">Edit backup target</string>
     <string name="backup_net_no_target">No cloud backup target yet</string>
+    <string name="backup_net_no_target_hint">Tap + in the top right to add a WebDAV or S3 backup target</string>
     <string name="backup_net_upload">Upload</string>
     <string name="backup_net_upload_short">Upload</string>
     <string name="backup_net_upload_subtitle">Export the current backup and upload to the selected target</string>
@@ -921,7 +936,7 @@
     <!-- Credential List -->
     <string name="credential_empty_hint">No credentials yet, tap + to add</string>
     <string name="credential_empty_title">No Git Credentials</string>
-    <string name="credential_empty_desc">Configure credentials so AiCode can authenticate when pushing or pulling repositories</string>
+    <string name="credential_empty_desc">Tap + in the top right to sign in with GitHub or add an access token. AiCode then authenticates pushes and pulls automatically</string>
 
     <!-- Credential Add / Quick Login -->
     <string name="credential_add_sheet_title">Add Credential</string>
@@ -1273,11 +1288,10 @@
     <string name="prompts_field_content_placeholder">What the model should follow</string>
     <string name="prompts_editor_new">New prompt</string>
     <string name="prompts_editor_edit">Edit prompt</string>
-    <string name="prompts_add_sheet_title">Prompts</string>
     <string name="prompts_add_prompt">Add fragment</string>
-    <string name="prompts_add_prompt_hint">Insert a new fragment with a free number</string>
+    <string name="prompts_reset_custom">Reset custom prompts</string>
+    <string name="prompts_reset_confirm">Deletes every custom prompt fragment in this project and the global layer; each number falls back to the built-in prompt. This cannot be undone.</string>
     <string name="prompts_help">Help</string>
-    <string name="prompts_help_hint">How it works and when it applies</string>
     <string name="prompts_disable_builtin">Disable all built-in prompts</string>
     <string name="prompts_disable_builtin_hint">Keep only your own fragments; you must supply every rule yourself</string>
 
@@ -1473,6 +1487,28 @@
     <string name="provider_models_batch_delete">Delete</string>
     <string name="provider_models_batch_delete_title">Delete Models</string>
     <string name="provider_models_batch_delete_confirm">Are you sure you want to delete the selected %1$d models?</string>
+    <!-- Batch operations (multi-select mode): shared labels reused across pages -->
+    <string name="common_select_mode">Select</string>
+    <string name="common_select_all">Select All</string>
+    <string name="common_deselect_all">Deselect All</string>
+    <string name="common_selected_count">%1$d selected</string>
+    <string name="common_batch_delete">Delete</string>
+    <string name="common_batch_enable">Enable</string>
+    <string name="common_batch_disable">Disable</string>
+    <string name="common_batch_reconnect">Reconnect</string>
+    <string name="common_batch_deleting">Deleting…</string>
+    <string name="providers_batch_delete_title">Delete Providers</string>
+    <string name="providers_batch_delete_confirm">Delete the selected %1$d providers? This cannot be undone.</string>
+    <string name="mcp_batch_delete_title">Delete MCP Servers</string>
+    <string name="mcp_batch_delete_confirm">Delete the selected %1$d MCP servers?</string>
+    <string name="skills_batch_delete_title">Delete Skills</string>
+    <string name="skills_batch_delete_confirm">Delete the selected %1$d skill directories? This cannot be undone.</string>
+    <string name="subagents_batch_delete_title">Delete Subagents</string>
+    <string name="subagents_batch_delete_confirm">Delete the selected %1$d subagent definition files? This cannot be undone.</string>
+    <string name="prompts_batch_delete_title">Delete Prompts</string>
+    <string name="prompts_batch_delete_confirm">Delete the selected %1$d custom prompt fragments? Their numbers will fall back to the next source.</string>
+    <string name="container_download_batch_delete_title">Delete Downloaded Images</string>
+    <string name="container_download_batch_delete_confirm">Delete the selected %1$d image files? Imported containers will no longer be able to unpack them.</string>
     <string name="provider_model_name">Model Name</string>    <string name="provider_model_already_added">This model has already been added</string>
     <string name="provider_edit_model">Edit Model</string>
     <string name="provider_model_section_price">Pricing</string>
