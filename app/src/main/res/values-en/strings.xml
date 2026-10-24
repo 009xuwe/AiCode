@@ -1814,7 +1814,9 @@
     <string name="chat_more_options">More Options</string>
     <string name="chat_action_edit">Edit Message</string>
     <string name="chat_action_copy">Copy Text</string>
+    <string name="chat_action_fork">Fork From Here</string>
     <string name="chat_action_delete">Delete Message</string>
+    <string name="chat_fork_title">Fork of %1$s</string>
     <string name="chat_edit_dialog_title">Edit Message</string>
     <string name="chat_edit_dialog_hint">Enter message content</string>
 

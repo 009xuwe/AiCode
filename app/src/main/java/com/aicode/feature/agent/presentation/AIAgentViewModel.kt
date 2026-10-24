@@ -24,6 +24,7 @@ import com.aicode.feature.agent.data.local.dao.ChatSessionDao
 import com.aicode.feature.agent.data.local.dao.LlmCallRecordDao
 import com.aicode.feature.agent.data.local.dao.TodoItemDao
 import com.aicode.feature.agent.domain.model.TodoItem
+import com.aicode.feature.agent.data.local.entity.AgentMessageEntity
 import com.aicode.feature.agent.data.local.entity.ChatSessionEntity
 import com.aicode.feature.agent.domain.container.ContainerInitState
 import com.aicode.feature.agent.domain.container.ContainerOsDetector
@@ -3119,6 +3120,70 @@ class AIAgentViewModel @Inject constructor(
         } catch (e: Exception) {
             FileLogger.e(TAG, "删除消息失败", e)
         }
+    }
+
+    /**
+     * 从指定消息处分叉新会话：复制该消息（含）之前的全部消息，标题「Fork of 原标题」，
+     * 复制 provider/model/mode/思考档位/目标等配置，token 计数按复制消息重算，不复制
+     * checkpoint/todo/LLM 调用记录（分叉是干净副本），完成后切换到新会话。
+     *
+     * 截断点按 timestamp 取前缀，与 rewind 同口径；被上下文压缩吞掉的旧消息 UI 不展示、
+     * 选不中，分叉点必在压缩摘要之后，摘要行按时间戳自然随副本带走，回放上下文完整。
+     */
+    fun forkFromMessage(messageId: String) = viewModelScope.launch {
+        val sourceId = _currentSessionId.value ?: return@launch
+        try {
+            val target = agentMessageDao.getMessageById(messageId) ?: return@launch
+            if (target.sessionId != sourceId) return@launch
+            if (target.isCompactionMarker || target.isContextSummary) return@launch
+            val source = chatSessionDao.getById(sourceId) ?: return@launch
+
+            val copied = trimIncompleteTurnTail(
+                agentMessageDao.getMessagesBySessionOnce(sourceId).filter { it.timestamp <= target.timestamp }
+            )
+            if (copied.isEmpty()) return@launch
+
+            val now = System.currentTimeMillis()
+            val fork = source.copy(
+                id = UUID.randomUUID().toString(),
+                title = context.getString(R.string.chat_fork_title, source.title),
+                createdAt = now,
+                updatedAt = now,
+                goalTurnCount = 0,
+                goalStartInputTokens = 0,
+                goalStartOutputTokens = 0,
+                totalInputTokens = copied.sumOf { it.inputTokens },
+                totalOutputTokens = copied.sumOf { it.outputTokens },
+                lastInputTokens = 0,
+                isPinned = false,
+                parentId = null,
+                subagentType = null
+            )
+            chatSessionDao.upsert(fork)
+            agentMessageDao.insertAll(
+                copied.map { it.copy(id = UUID.randomUUID().toString(), sessionId = fork.id) }
+            )
+            selectSession(fork.id)
+        } catch (e: Exception) {
+            FileLogger.e(TAG, "分叉会话失败", e)
+        }
+    }
+
+    /**
+     * 截齐尾部不完整的轮次：末尾是 TOOL 行（配对的 assistant 工具调用被截走）或带
+     * toolCalls 的 ASSISTANT 行（工具结果在截断点之后）时从末尾逐行丢弃，保证副本
+     * 以完整轮次收尾——否则回放时出现悬挂 tool_use，Anthropic 等端点会直接 400。
+     */
+    private fun trimIncompleteTurnTail(messages: List<AgentMessageEntity>): List<AgentMessageEntity> {
+        var result = messages
+        while (result.isNotEmpty()) {
+            val last = result.last()
+            val incomplete = last.role == MessageRole.TOOL.name ||
+                (last.role == MessageRole.ASSISTANT.name && !last.toolCallsJson.isNullOrBlank())
+            if (!incomplete) break
+            result = result.dropLast(1)
+        }
+        return result
     }
 
     private fun detectLanguage(filePath: String): String {
