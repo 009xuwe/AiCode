@@ -837,8 +837,15 @@ fun SettingsScreen(
                             }
                         }
                         SettingsSection.Prompts -> {
-                            // 多选：批量删除自定义提示词（内置来源的片段不可选）。
-                            SelectionToggleAction(selectionFor(SettingsSection.Prompts))
+                            // 多选：批量删除自定义提示词（本地/内置来源只读、不可勾选）。
+                            // 片段全部来自只读层（如未自定义时的全「本地」）时置灰开关——进多选也无项可勾。
+                            val promptsViewModel: com.aicode.feature.settings.presentation.PromptsViewModel =
+                                androidx.hilt.navigation.compose.hiltViewModel()
+                            val promptsState by promptsViewModel.state.collectAsStateWithLifecycle()
+                            SelectionToggleAction(
+                                selectionFor(SettingsSection.Prompts),
+                                enabled = promptsState.fragments.any { it.editable }
+                            )
                             // 帮助入口只保留这一个：原来「+」弹层里的帮助项与它重复，弹层已去掉。
                             IconButton(onClick = { showPromptsAnnouncement = true }) {
                                 Icon(
