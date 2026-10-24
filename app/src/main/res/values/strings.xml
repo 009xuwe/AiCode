@@ -826,6 +826,11 @@
     <string name="chat_goal_resume">恢复目标</string>
     <string name="chat_goal_clear">清除目标</string>
     <string name="chat_error_title">请求失败</string>
+    <string name="network_error_dns">DNS 解析失败：域名没有解析到可用地址，请检查网络、Wi-Fi 的 DNS 或代理设置</string>
+    <string name="network_error_timeout">请求超时：网络较慢或服务未响应</string>
+    <string name="network_error_connect">连接被拒绝：请检查 Base URL 与端口</string>
+    <string name="network_error_ssl">SSL 握手失败：请检查证书或代理设置</string>
+    <string name="common_error_unknown">未知错误</string>
     <string name="slash_command_compress_desc">手动触发当前会话的上下文压缩</string>
     <string name="slash_command_init_desc">分析当前工作区代码库，生成或改进项目规则 AGENTS.md</string>
     <string name="slash_command_usage_desc">查看今日与累计的调用次数、token 用量与预估费用</string>

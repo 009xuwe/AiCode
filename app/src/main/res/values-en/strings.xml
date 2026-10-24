@@ -826,6 +826,11 @@
     <string name="chat_goal_resume">Resume goal</string>
     <string name="chat_goal_clear">Clear goal</string>
     <string name="chat_error_title">Request failed</string>
+    <string name="network_error_dns">DNS resolution failed: the host has no usable address. Check your network, Wi-Fi DNS, or proxy settings</string>
+    <string name="network_error_timeout">Request timed out: slow network or no response from the server</string>
+    <string name="network_error_connect">Connection refused: check the Base URL and port</string>
+    <string name="network_error_ssl">SSL handshake failed: check the certificate or proxy settings</string>
+    <string name="common_error_unknown">Unknown error</string>
     <string name="slash_command_compress_desc">Manually compact this session context</string>
     <string name="slash_command_init_desc">Analyze the workspace codebase and generate or improve the AGENTS.md project rules</string>
     <string name="slash_command_usage_desc">View today and all-time call count, token usage and estimated cost</string>

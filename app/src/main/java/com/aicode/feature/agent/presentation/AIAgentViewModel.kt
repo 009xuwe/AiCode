@@ -2084,7 +2084,7 @@ class AIAgentViewModel @Inject constructor(
             throw e
         } catch (e: Exception) {
              FileLogger.e(TAG, "executeAgentRequestStream 失败: request=$request", e)
-             setAgentState(sessionId, AgentUIState.Error(e.toUserMessage()))
+             setAgentState(sessionId, AgentUIState.Error(e.toUserMessage(context)))
              _completedSessions.value = _completedSessions.value - sessionId
         } finally {
             val isOwnJob = sessionJobs[sessionId] == coroutineContext[Job]
