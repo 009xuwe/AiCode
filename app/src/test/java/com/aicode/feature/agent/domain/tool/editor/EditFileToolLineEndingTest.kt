@@ -193,6 +193,18 @@ class EditFileToolLineEndingTest {
     }
 
     @Test
+    fun separatorRunLongerThanContent_failsCleanly() = runTest {
+        // 模式里的换行数多于内容剩余字符时，扫描不得越界，按未匹配处理
+        val original = "a\r\n\r\n"
+        val file = tmp.newFile().apply { writeText(original) }
+
+        val result = apply(file, edit("\n\n\nq", "x"))
+
+        assertEquals("NO_MATCH", (result as ToolResult.Error).code)
+        assertEquals(original, file.readText())
+    }
+
+    @Test
     fun deletion_preservesSurroundingLineEndings() = runTest {
         val file = tmp.newFile().apply { writeText("first\r\nsecond\r\nthird\r\n") }
 
