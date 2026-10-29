@@ -14,6 +14,12 @@
   <a href="https://github.com/jieapi/aicode/releases"><img src="https://img.shields.io/github/v/release/jieapi/aicode?display_name=tag&include_prereleases" alt="Latest Release" /></a>
 </p>
 
+## Statement on Open-Source License Compliance
+
+We recently discovered that a closed-source commercial app makes extensive use of AiCode's code and static assets, even retaining class names and other identifiers from this project, without complying with its open-source license. Meanwhile, its developer claims never to have heard of AiCode.
+
+**AiCode permits commercial use under the terms of [GPL-3.0](LICENSE).** Our objection is not to commercialization, but to distributing derivative works as closed-source software without fulfilling obligations such as preserving copyright and license notices, licensing those works under GPL-3.0, and providing the corresponding source code. Open source does not mean giving up copyright. Please respect the license and the work of open-source developers.
+
 <p align="center">
   <table>
     <tr>
