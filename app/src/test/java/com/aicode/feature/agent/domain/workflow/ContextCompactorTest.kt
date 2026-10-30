@@ -151,6 +151,19 @@ class ContextCompactorTest {
     }
 
     @Test
+    fun skipsWhenFixedOverheadMakesCompactionUseless() = runTest {
+        prepare(30_000)
+        // 预算 27k、触发线 90% = 24.3k：系统提示词估算 ~25k，历史再怎么压也降不到触发线以下。
+        val original = history()
+        val events = mutableListOf<AgentEvent>()
+        val result = compactor.compactIfNeeded(original, provider, systemPrompt = "汉".repeat(25_000),
+            currentInputTokens = 25_000, onEvent = { events.add(it) })
+        assertFalse(result.compacted)
+        assertTrue(events.none { it is AgentEvent.CompactionStarted })
+        coVerify(exactly = 0) { provider.complete(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun invalidResponsesDoNotCommitAndCountFailedCalls() = runTest {
         prepare()
         for (response in listOf(AIResponse(""), AIResponse("partial", stopReason = "length"), AIResponse("blocked", stopReason = "refusal"))) {
