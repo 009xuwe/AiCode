@@ -89,24 +89,38 @@ class ContextCompactor @Inject constructor(
         val windowModel = windowProvider ?: aiProvider
         val metadata = modelMetadataService.resolve(windowModel.providerId, inferProviderType(windowModel), windowModel.model)
         val inputBudget = ModelContextPolicy.effectiveInputBudget(metadata)
-        val estimatedTokens = CompactionText.estimateRequest(systemPrompt, tools, messages)
+        val estimatedTokens = ContextTokenEstimator.estimate(systemPrompt, messages, tools)
         val currentTokens = currentInputTokens.takeIf { it > 0 } ?: estimatedTokens
         val threshold = (inputBudget * generalSettingsRepository.compactionThresholdPercent() / 100.0).toInt()
         if (messages.isEmpty() || (!force && currentTokens < threshold && currentTokens < inputBudget)) return unchanged
+
+        var splitIndex = CompactionText.selectTailStartIndex(messages, inputBudget)
+        if (force && splitIndex <= 0) splitIndex = messages.lastIndex
+        splitIndex = CompactionText.adjustSplitIndex(messages, splitIndex)
+        // 固定开销（系统提示词 + 工具定义）加上必须原样保留的最近上下文就已经压不到触发线以下时，
+        // 压缩只会白花一轮摘要调用，下一次请求又立刻重新触发；窗口小的模型最容易遇到。已经超出预算时仍要试。
+        if (!force && currentTokens < inputBudget && splitIndex > 0) {
+            val retainedTokens = ContextTokenEstimator.estimate(systemPrompt, messages.drop(splitIndex), tools)
+            if (retainedTokens >= threshold) {
+                FileLogger.i(TAG, "保留部分已达 $retainedTokens tokens（触发线 $threshold），压缩无法降到触发线以下，跳过")
+                return unchanged
+            }
+        }
 
         onEvent(AgentEvent.CompactionStarted(currentTokens))
         val originalOutputLimit = aiProvider.maxOutputTokens
         val markerTimestamp = if (sessionId != null) messagePersistenceUseCase.nextTimestamp() else null
         val summaryTimestamp = if (sessionId != null) messagePersistenceUseCase.nextTimestamp() else null
         try {
-            var splitIndex = CompactionText.selectTailStartIndex(messages, inputBudget)
-            if (force && splitIndex <= 0) splitIndex = messages.lastIndex
-            splitIndex = CompactionText.adjustSplitIndex(messages, splitIndex)
             check(splitIndex > 0) { "No compressible history before the retained tool unit" }
             val head = messages.take(splitIndex)
             val tail = messages.drop(splitIndex)
             val material = removeCompactionPairs(head)
             check(material.isNotEmpty()) { "No new history to summarize" }
+            // 保留部分本身就放不进预算时，摘要再短也无济于事：先于摘要调用失败，省掉整串白跑的请求。
+            check(ContextTokenEstimator.estimate(systemPrompt, tail, tools) < inputBudget) {
+                "Retained history and tool definitions already exceed the main model input budget"
+            }
 
             val headIds = head.map { it.id }.filter { it.isNotBlank() }.distinct()
             if (sessionId != null) {
@@ -152,7 +166,7 @@ class ContextCompactor @Inject constructor(
                 AgentMessage.UserMessage(id = markerId, content = CONTEXT_COMPACTION_MARKER),
                 AgentMessage.AssistantMessage(id = summaryId, content = summary)
             ) + tail
-            val compactedTokens = CompactionText.estimateRequest(systemPrompt, tools, compacted)
+            val compactedTokens = ContextTokenEstimator.estimate(systemPrompt, compacted, tools)
             // 摘要由模型生成，长度不受控：短历史里摘要可能比被替换的原消息更长，压缩没有收益。
             // 这不是失败，只是不该落库，静默保留原历史。
             if (compactedTokens >= estimatedTokens) {
