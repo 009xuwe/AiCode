@@ -363,7 +363,9 @@ class AIAgentViewModel @Inject constructor(
         if (state.sessionId != sid || !state.loaded || !state.hasMore) return
         val currentLimit = _messageLimit.value[sid] ?: defaultLimit
         if (loadedMessageLimits[sid] != currentLimit) return
-        _messageLimit.value = _messageLimit.value + (sid to (currentLimit + 30))
+        // 按当前上限的一定比例递增：一轮长过程折叠后可见项很少，定步长 30 条要连续补载很多次才能翻过它。
+        // 单次步长封顶 90：每次补载都要重查、重转换并重建列表，步长随上限无界增长会让单次卡顿越来越长。
+        _messageLimit.value = _messageLimit.value + (sid to (currentLimit + (currentLimit / 2).coerceIn(30, 90)))
     }
 
     /** 容器初始化实时进度（解压/部署/装包），AI 页底部气泡展示。 */
@@ -869,7 +871,8 @@ class AIAgentViewModel @Inject constructor(
                         .toList(),
                     loaded = true,
                     hasMore = list.size >= limit,
-                    isLoadingMore = false
+                    isLoadingMore = false,
+                    limit = limit
                 )
             }.flowOn(Dispatchers.Default)
                 .onEach { loadedMessageLimits[id] = limit }

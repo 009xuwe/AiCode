@@ -1426,13 +1426,13 @@ fun AIChatPanel(
     val latestMessagesState = rememberUpdatedState(messagesState)
     LaunchedEffect(listState, messagesReady) {
         if (!messagesReady) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex }
+        snapshotFlow {
+            val ms = latestMessagesState.value
+            Triple(listState.firstVisibleItemIndex <= 3 && ms.hasMore && !ms.isLoadingMore, ms.sessionId, ms.limit)
+        }
             .distinctUntilChanged()
-            .collect { index ->
-                val ms = latestMessagesState.value
-                if (index <= 3 && ms.hasMore && !ms.isLoadingMore) {
-                    viewModel.loadMoreMessages()
-                }
+            .collect { (shouldLoad, _, _) ->
+                if (shouldLoad) viewModel.loadMoreMessages()
             }
     }
 
@@ -1442,6 +1442,9 @@ fun AIChatPanel(
 
     val markdownImageTransformer = remember(viewModel.fileAccess) {
         MarkdownImageTransformer(viewModel.fileAccess)
+    // 触发信号里带上分页上限：消息按条数分页，一轮长过程折叠后整页补载可能一个可见项都不增加，
+    // index 不再变化；只监听 index 会卡在这里，要用户上下晃动才能再触发一页。
+    // 上限纳入信号后，每页补载完成都会重新判断，仍在顶部就连续补载。
     }
     val imageViewerState = rememberImageViewerState()
     val viewerDecodeSpec = rememberViewerDecodeSpec()
